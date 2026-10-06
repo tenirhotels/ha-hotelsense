@@ -22,7 +22,7 @@ from .api.errors import (LoginFailed, OmadaApiException,
                          OperationForbidden, RequestError, LoginRequired, UnknownSite)
 from .const import (CONF_SITE, CONF_SSID_FILTER, CONF_DISCONNECT_TIMEOUT,
                     CONF_SCAN_INTERVAL, CONF_SCAN_INTERVAL_DETAILS, CONF_TRACK_CLIENTS,
-                    CONF_TRACK_DEVICES, CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS,
+                    CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS,
                     CONF_ENABLE_CLIENT_UPTIME_SENSORS, CONF_ENABLE_CLIENT_BLOCK_SWITCH,
                     CONF_ENABLE_DEVICE_BANDWIDTH_SENSORS, CONF_ENABLE_DEVICE_RADIO_UTILIZATION_SENSORS,
                     CONF_ENABLE_DEVICE_CONTROLS, CONF_ENABLE_DEVICE_STATISTICS_SENSORS,
@@ -75,7 +75,9 @@ class OmadaController:
         # Per-client entities/devices (phones, TVs ...) are off by default: presence
         # reads the client list directly and needs no HA device per client.
         self.option_track_clients = options.get(CONF_TRACK_CLIENTS, False)
-        self.option_track_devices = options.get(CONF_TRACK_DEVICES, True)
+        # Always on: rooms are the Areas of the access point devices, so without
+        # them presence has no locations (the option is no longer offered).
+        self.option_track_devices = True
         self.option_client_bandwidth_sensors = options.get(CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS, False)
         self.option_client_uptime_sensor = options.get(CONF_ENABLE_CLIENT_UPTIME_SENSORS, False)
         self.option_client_block_switch = options.get(CONF_ENABLE_CLIENT_BLOCK_SWITCH, False)
@@ -184,11 +186,11 @@ class OmadaController:
             except LoginRequired:
                 LOGGER.warning(
                     "Token possibly expired to Omada API. Renewing...")
-                await self.api.login()
+                await self._async_relogin()
             except RequestError as err:
                 LOGGER.error(
                     "Unable to connect to Omada: %s. Renewing login...", err)
-                await self.api.login()
+                await self._async_relogin()
             except OmadaApiException as err:
                 LOGGER.error("Omada API error: %s", err)
 
@@ -197,6 +199,14 @@ class OmadaController:
             self._last_full_update = event_time  # use event time for last full update
 
         async_dispatcher_send(self.hass, self.signal_update)
+
+    async def _async_relogin(self) -> None:
+        """Log in again; a controller that is down fails here too, and that must
+        not abort the poll (it would skip the "unavailable" update below)."""
+        try:
+            await self.api.login()
+        except OmadaApiException as err:  # RequestError, timeouts, LoginFailed ...
+            LOGGER.debug("Omada login failed: %s", err)
 
     @callback
     def async_on_close(self, func: CALLBACK_TYPE) -> None:

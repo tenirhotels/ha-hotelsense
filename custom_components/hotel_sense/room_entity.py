@@ -132,6 +132,9 @@ class RoomCountSensor(RoomEntity, SensorEntity):
     _platform_domain = "sensor"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "devices"
+    # Live view only: the device list (RSSI, last seen ...) changes on every poll
+    # and would bloat the recorder database; the count itself is recorded.
+    _unrecorded_attributes = frozenset({"devices", "types"})
 
     def __init__(self, manager, area_id, category: str) -> None:
         super().__init__(manager, area_id, f"{category}_devices")
@@ -205,6 +208,7 @@ class MisplacedFixedDevicesSensor(SensorEntity):
     _attr_translation_key = "misplaced_devices"
     _attr_native_unit_of_measurement = "devices"
     _attr_icon = "mdi:map-marker-alert"
+    _unrecorded_attributes = frozenset({"devices"})
 
     def __init__(self, manager: PresenceManager, device_info: DeviceInfo) -> None:
         self.manager = manager
