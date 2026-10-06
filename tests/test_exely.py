@@ -193,3 +193,8 @@ async def test_options_step_shows_url_and_key_and_saves_mapping(hass, make_entry
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {CONF_EXELY_ROOM_MAP: "101 = Room 06"})
     assert entry.options[CONF_EXELY_ROOM_MAP] == "101 = Room 06"
+
+
+def test_number_101_is_not_room_01():
+    """Hotel-style numbering is never guessed: it needs an explicit mapping."""
+    assert room_number("101") == 101 != room_number("Room 01")

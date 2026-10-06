@@ -160,7 +160,7 @@
       },
       "exely": {
         "title": "Exely PMS webhook",
-        "description": "In Exely: Hotel settings → API connection → your connection → Webhooks: Use webhooks = Yes.\nURL: {url}\nAuthentication: API key; key: {api_key}\nEvents: check-in and check-out only.\n\nRooms are matched by number (Exely 1 or 101 → Area Room 01) only when unambiguous. Otherwise map them below.",
+        "description": "In Exely: Hotel settings → API connection → your connection → Webhooks: Use webhooks = Yes.\nURL: {url}\n(Exely requires https://. If the URL starts with http://, set the Internet URL to https://… in Settings → System → Network.)\nAuthentication: API key; key: {api_key}\nEvents: check-in and check-out only.\n\nRooms are matched automatically by name or number (Exely Room 01, 01 or 1 → Area Room 01) only when unambiguous. Other numbering (e.g. 101) must be mapped below.",
         "data": {
           "exely_room_map": "Room mapping (one per line: Exely room = HA Area)"
         },
