@@ -155,12 +155,30 @@
       },
       "exely": {
         "title": "Exely PMS webhook",
-        "description": "In Exely: Hotel settings → API connection → your connection → Webhooks: Use webhooks = Yes.\nURL: {url}\nAuthentication: API key; key: {api_key}\nEvents: check-in and check-out only.\n\nRooms are matched by number (Exely 1 or 101 → Area Room 01) only when unambiguous. Otherwise map them below.",
+        "description": "In Exely: Hotel settings → API connection → your connection → Webhooks: Use webhooks = Yes.\nURL: {url}\n(Exely requires https://. If the URL starts with http://, set the Internet URL to https://… in Settings → System → Network.)\nAuthentication: API key; key: {api_key}\nEvents: check-in and check-out only.\n\nRooms are matched automatically by name or number (Exely Room 01, 01 or 1 → Area Room 01) only when unambiguous. Other numbering (e.g. 101) must be mapped below.",
         "data": {
-          "exely_room_map": "Room mapping (one per line: Exely room = HA Area)"
+          "exely_room_map": "Room mapping (one per line: Exely room = HA Area)",
+          "exely_new_key": "Generate a new API key",
+          "exely_new_url": "Generate a new webhook address"
         },
         "data_description": {
-          "exely_room_map": "Example: 101 = Room 01"
+          "exely_room_map": "Example: 101 = Room 01",
+          "exely_new_key": "The current key stops working immediately; enter the new key in Exely.",
+          "exely_new_url": "The current URL stops working immediately; enter the new URL in Exely."
+        }
+      },
+      "exely_rotated": {
+        "title": "Exely PMS webhook",
+        "description": "⚠️ New values generated: the old key / URL no longer work. Enter the new ones in Exely now.\n\nIn Exely: Hotel settings → API connection → your connection → Webhooks: Use webhooks = Yes.\nURL: {url}\n(Exely requires https://. If the URL starts with http://, set the Internet URL to https://… in Settings → System → Network.)\nAuthentication: API key; key: {api_key}\nEvents: check-in and check-out only.\n\nRooms are matched automatically by name or number (Exely Room 01, 01 or 1 → Area Room 01) only when unambiguous. Other numbering (e.g. 101) must be mapped below.",
+        "data": {
+          "exely_room_map": "Room mapping (one per line: Exely room = HA Area)",
+          "exely_new_key": "Generate a new API key",
+          "exely_new_url": "Generate a new webhook address"
+        },
+        "data_description": {
+          "exely_room_map": "Example: 101 = Room 01",
+          "exely_new_key": "The current key stops working immediately; enter the new key in Exely.",
+          "exely_new_url": "The current URL stops working immediately; enter the new URL in Exely."
         }
       }
     },

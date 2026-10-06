@@ -193,3 +193,76 @@ async def test_options_step_shows_url_and_key_and_saves_mapping(hass, make_entry
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {CONF_EXELY_ROOM_MAP: "101 = Room 06"})
     assert entry.options[CONF_EXELY_ROOM_MAP] == "101 = Room 06"
+
+
+def test_number_101_is_not_room_01():
+    """Hotel-style numbering is never guessed: it needs an explicit mapping."""
+    assert room_number("101") == 101 != room_number("Room 01")
+
+
+# --------------------------------------------------------------------------- #
+# Rotating compromised secrets
+# --------------------------------------------------------------------------- #
+async def _rotate(hass, entry, **flags):
+    result = await _options_menu(hass, entry, "exely")
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_EXELY_ROOM_MAP: "", **flags})
+
+
+async def test_regenerate_api_key(hass, make_entry, patch_api, hass_client_no_auth):
+    entry = await _exely_hotel(hass, make_entry)
+    client = await hass_client_no_auth()
+    old_key, webhook_id = entry.data[CONF_EXELY_API_KEY], entry.data[CONF_EXELY_WEBHOOK_ID]
+
+    result = await _rotate(hass, entry, exely_new_key=True)
+    # Form is shown again with the new key, so it can be copied to Exely.
+    assert result["step_id"] == "exely_rotated"
+    new_key = entry.data[CONF_EXELY_API_KEY]
+    assert new_key != old_key and len(new_key) >= 24
+    assert result["description_placeholders"]["api_key"] == new_key
+    assert entry.data[CONF_EXELY_WEBHOOK_ID] == webhook_id  # URL unchanged
+
+    assert (await _post(client, entry, {"event": "CheckIn", "room": "06"}, key=old_key)).status == 401
+    assert (await _post(client, entry, {"event": "CheckIn", "room": "06"})).status == 200
+    await hass.async_block_till_done()
+    assert _state(hass, "select.room_06_status") == "checked_in"
+
+    # Survives a restart.
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_EXELY_API_KEY] == new_key
+
+
+async def test_regenerate_webhook_address(hass, make_entry, patch_api, hass_client_no_auth):
+    entry = await _exely_hotel(hass, make_entry)
+    client = await hass_client_no_auth()
+    old_id = entry.data[CONF_EXELY_WEBHOOK_ID]
+
+    result = await _rotate(hass, entry, exely_new_url=True)
+    new_id = entry.data[CONF_EXELY_WEBHOOK_ID]
+    assert new_id != old_id
+    assert new_id in result["description_placeholders"]["url"]
+
+    # Old address is gone (HA answers 200 for unknown webhooks, but nothing happens).
+    key = entry.data[CONF_EXELY_API_KEY]
+    await client.post(f"/api/webhook/{old_id}", json={"event": "CheckIn", "room": "06"},
+                      headers={"API-KEY": key})
+    await hass.async_block_till_done()
+    assert _state(hass, "select.room_06_status") == "checked_out"
+    # New address works; a missing key there is still rejected.
+    assert (await _post(client, entry, {"event": "CheckIn", "room": "06"}, key=None)).status == 401
+    assert (await _post(client, entry, {"event": "CheckIn", "room": "06"})).status == 200
+    await hass.async_block_till_done()
+    assert _state(hass, "select.room_06_status") == "checked_in"
+
+    # Unload unregisters the new address cleanly (reload would fail on a duplicate id).
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_saving_without_checkboxes_keeps_secrets(hass, make_entry, patch_api):
+    entry = await _exely_hotel(hass, make_entry)
+    before = (entry.data[CONF_EXELY_API_KEY], entry.data[CONF_EXELY_WEBHOOK_ID])
+    result = await _rotate(hass, entry)
+    assert result["type"].value == "create_entry"
+    assert (entry.data[CONF_EXELY_API_KEY], entry.data[CONF_EXELY_WEBHOOK_ID]) == before

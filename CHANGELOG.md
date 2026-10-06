@@ -1,4 +1,6 @@
 # Hotel Sense (unreleased)
+- Settings texts fully follow the interface language (the "new key generated" notice no longer depends on the server language); English dashboard `dashboards/hotel_sense_rooms_en.yaml`
+- Exely webhook: regenerate a compromised API key and/or webhook address from the settings
 - Exely PMS webhook: check-in / check-out sets the room status (API-KEY header, room matching by number or mapping, `sensor.hotel_sense_exely_last_event`, recent payloads in diagnostics)
 - Room status is now Exely check-in / check-out: `checked_in` / `checked_out` (saved 0.2.0 statuses migrate: sold -> checked_in, vacant/cleaning -> checked_out); cleaning states removed
 - Device list: separate `room` column (where equipment is installed); `note` for department/role

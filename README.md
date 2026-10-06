@@ -11,6 +11,10 @@
 
 ### Setup (once)
 
+The integration's menus, entity names and states follow each user's interface
+language (Profile → Language); English and Russian are included. After an
+update, reload the browser page (Ctrl+F5) so new texts are picked up.
+
 Hotel Sense adds only the **controller** and the **access points** as devices.
 Connected clients (phones, TVs, air conditioners …) are read directly for
 presence and get no devices; switches and gateways are skipped. Per-client
@@ -51,6 +55,7 @@ and entities.
    of common areas (no status / no violations; default: every Area whose name
    does not start with "Room"/"Номер").
 5. **Dashboard.** Paste [`dashboards/hotel_sense_rooms.yaml`](dashboards/hotel_sense_rooms.yaml)
+   (Russian) or [`dashboards/hotel_sense_rooms_en.yaml`](dashboards/hotel_sense_rooms_en.yaml) (English)
    into a new dashboard (Raw configuration editor). If your Area IDs are not
    `room_01`…`room_10` / `admin_house`, regenerate it:
    `python scripts/generate_dashboard.py --rooms <area ids> --common <area ids>`.
@@ -65,9 +70,11 @@ sets the room status from check-in / check-out events.
 2. In Exely: Настройка гостиницы → Подключение API → your connection → Вебхуки:
    «Использование вебхуков» = Да, URL from step 1, authentication «API-ключ»
    with the key from step 1, events: only check-in and check-out. Save.
-3. Rooms are matched by number (Exely `1`, `01` or `101` → Area `Room 01`) only
-   when that is unambiguous; otherwise add lines like `101 = Room 01` to the room
-   mapping in the same settings page.
+3. Rooms are matched automatically by name or number (Exely `Room 01`, `01` or
+   `1` → Area `Room 01`) only when that is unambiguous. Other numbering (e.g.
+   `101`) needs lines like `101 = Room 01` in the room mapping on the same page.
+   Exely requires `https://`: if the URL shows `http://`, set the Internet URL to
+   `https://…` in HA → Settings → System → Network.
 
 Requests without the right `API-KEY` header are rejected (401). Everything else
 is answered with 200 so Exely does not retry. An event is applied only if it is
@@ -76,6 +83,10 @@ clearly a check-in or a check-out and the room is found; the result is in
 `invalid`). The last 20 raw payloads are kept in memory and can be downloaded
 via the integration's *Download diagnostics* — they contain guest data, mask it
 before sharing. The manual status select stays as a fallback.
+
+If the key or the address leaks, tick *Generate a new API key* and/or *Generate
+a new webhook address* in the same settings page: the old one stops working at
+once and the form shows the new value to enter in Exely.
 
 ### Entities per room (`room_01` = HA area ID)
 

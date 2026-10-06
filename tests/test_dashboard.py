@@ -6,6 +6,7 @@ import importlib.util
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 from homeassistant.helpers.template import Template
 
@@ -35,9 +36,12 @@ def _cards(dashboard: dict) -> list[dict]:
     return out
 
 
-def test_committed_dashboard_is_up_to_date():
-    committed = (ROOT / "dashboards" / "hotel_sense_rooms.yaml").read_text()
-    assert committed == generator.build_dashboard(generator.DEFAULT_ROOMS, generator.DEFAULT_COMMON)
+@pytest.mark.parametrize(("lang", "filename"), [("ru", "hotel_sense_rooms.yaml"),
+                                                ("en", "hotel_sense_rooms_en.yaml")])
+def test_committed_dashboard_is_up_to_date(lang, filename):
+    committed = (ROOT / "dashboards" / filename).read_text()
+    assert committed == generator.build_dashboard(
+        generator.DEFAULT_ROOMS, generator.DEFAULT_COMMON, lang)
     dashboard = yaml.safe_load(committed)
     referenced = set(ENTITY_RE.findall(committed))
     for room in generator.DEFAULT_ROOMS:
@@ -99,3 +103,17 @@ async def test_dashboard_renders_and_highlights_violations(hass, make_entry, pat
     await hass.async_block_till_done()
     room = Template(markdown[1]["content"], hass).async_render(parse_result=False)
     assert 'alert-type="info"' in room and "Визит сотрудника" in room
+
+
+async def test_english_dashboard_renders(hass, make_entry, patch_api):
+    await _hotel(hass, make_entry(), {AP_WF06: "Room 06", AP_WF07: "Admin House"})
+    cards = _cards(yaml.safe_load(generator.build_dashboard(["room_06"], ["admin_house"], "en")))
+    summary, room, admin = [Template(c["content"], hass).async_render(parse_result=False)
+                            for c in cards if c["type"] == "markdown"]
+    assert "Possible violations: 1" in summary
+    assert "Room 06 — VIOLATION" in room and "Guests: 2" in room
+    assert "Staff: 0" in admin
+    assert [c["name"] for c in cards if c["type"] == "tile"] == ["Status"]
+    # No Russian left in the English version.
+    text = generator.build_dashboard(generator.DEFAULT_ROOMS, generator.DEFAULT_COMMON, "en")
+    assert not any("а" <= ch.lower() <= "я" for ch in text)

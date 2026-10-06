@@ -49,4 +49,6 @@ EVENT_ROOM_STATE_CHANGED = f"{DOMAIN}_room_state_changed"
 CONF_EXELY_WEBHOOK_ID = "exely_webhook_id"  # entry.data, generated
 CONF_EXELY_API_KEY = "exely_api_key"  # entry.data, generated
 CONF_EXELY_ROOM_MAP = "exely_room_map"  # options: "101 = Room 01" lines
+CONF_EXELY_NEW_KEY = "exely_new_key"  # options-flow checkbox, not stored
+CONF_EXELY_NEW_URL = "exely_new_url"  # options-flow checkbox, not stored
 EVENT_EXELY = f"{DOMAIN}_exely_event"
