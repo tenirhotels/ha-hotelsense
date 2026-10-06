@@ -1,10 +1,10 @@
 {
   "domain": "hotel_sense",
   "name": "Hotel Sense",
-  "documentation": "https://github.com/tenirhotels/ha-hotelsense",
   "codeowners": [],
   "config_flow": true,
-  "version": "0.1.0",
+  "documentation": "https://github.com/tenirhotels/ha-hotelsense",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/tenirhotels/ha-hotelsense/issues"
+  "issue_tracker": "https://github.com/tenirhotels/ha-hotelsense/issues",
+  "version": "0.2.0"
 }

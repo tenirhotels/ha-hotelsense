@@ -8,7 +8,9 @@
           "username": "Username",
           "password": "Password",
           "verify_ssl": "Verify SSL"
-        }
+        },
+        "title": "Hotel Sense - Powered by Omada",
+        "description": "Set required parameters to connect to your Omada Controller."
       },
       "reconfigure": {
         "data": {
@@ -17,7 +19,9 @@
           "username": "Username",
           "password": "Password",
           "verify_ssl": "Verify SSL"
-        }
+        },
+        "title": "Hotel Sense - Powered by Omada",
+        "description": "Set required parameters to connect to your Omada Controller."
       }
     },
     "error": {
@@ -39,8 +43,8 @@
         "data": {
           "scan_interval": "Scan interval",
           "scan_interval_details": "Scan interval details",
-          "track_clients": "Enable client tracking",
-          "track_devices": "Enable device tracking"
+          "track_clients": "Create devices and entities for connected clients (diagnostics; presence works without it)",
+          "track_devices": "Create devices and entities for access points"
         },
         "description": "Configure options",
         "title": "Hotel Sense Options"
@@ -66,7 +70,216 @@
         },
         "description": "Configure device tracking",
         "title": "Hotel Sense Options"
+      },
+      "init": {
+        "title": "Hotel Sense Options",
+        "menu_options": {
+          "device_tracker": "Omada polling and entities",
+          "presence": "Room presence",
+          "device_list": "Fixed and employee devices"
+        }
+      },
+      "presence": {
+        "title": "Room presence",
+        "description": "How devices are attributed to rooms (HA Areas of the access points).",
+        "data": {
+          "presence_timeout": "Disconnect timeout (minutes)",
+          "roaming_debounce": "Roaming debounce (seconds)",
+          "min_rssi": "Minimum RSSI to change room (dBm, 0 = off)",
+          "common_areas": "Common areas (no room status, no violations)"
+        },
+        "data_description": {
+          "presence_timeout": "A device that drops off Wi-Fi stays in its room this long.",
+          "roaming_debounce": "A device must stay on an AP in another room this long before it is moved.",
+          "min_rssi": "Weaker signals never move a device to another room (neighbouring AP). Tune during the pilot.",
+          "common_areas": "Areas such as Admin House: presence is shown, but there is no room status and no violation."
+        }
+      },
+      "device_list": {
+        "title": "Fixed and employee devices",
+        "description": "Fixed devices: {fixed}. Employee devices: {employee}.",
+        "menu_options": {
+          "device_add": "Add device",
+          "device_edit_select": "Edit device",
+          "device_delete": "Delete devices",
+          "device_import": "Import CSV",
+          "device_export": "Export CSV",
+          "finish": "Done"
+        }
+      },
+      "device_add": {
+        "title": "Add device",
+        "data": {
+          "mac": "MAC address",
+          "name": "Name",
+          "category": "Category",
+          "owner": "Owner (employee)",
+          "note": "Note"
+        }
+      },
+      "device_edit_select": {
+        "title": "Edit device",
+        "data": {
+          "mac": "Device"
+        }
+      },
+      "device_edit": {
+        "title": "Edit device",
+        "data": {
+          "mac": "MAC address",
+          "name": "Name",
+          "category": "Category",
+          "owner": "Owner (employee)",
+          "note": "Note"
+        }
+      },
+      "device_delete": {
+        "title": "Delete devices",
+        "data": {
+          "devices": "Devices to delete"
+        }
+      },
+      "device_import": {
+        "title": "Import CSV",
+        "description": "Columns: mac, name, category (fixed/employee), owner, note. Any MAC notation is accepted. Comma or semicolon separated.\n{result}",
+        "data": {
+          "csv": "CSV",
+          "default_category": "Category for rows without one",
+          "replace": "Replace the whole list"
+        }
+      },
+      "device_export": {
+        "title": "Export CSV",
+        "description": "Copy the list below.",
+        "data": {
+          "csv": "CSV"
+        }
       }
+    },
+    "error": {
+      "invalid_mac": "Invalid MAC address.",
+      "duplicate_mac": "This MAC address is already in the list.",
+      "import_errors": "Some rows were not imported. Fix them and import again."
+    },
+    "abort": {
+      "no_devices": "The device list is empty."
+    }
+  },
+  "selector": {
+    "category": {
+      "options": {
+        "fixed": "Fixed (equipment)",
+        "employee": "Employee"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "guest_presence": {
+        "name": "Guest presence"
+      },
+      "employee_presence": {
+        "name": "Employee presence"
+      },
+      "violation": {
+        "name": "Violation"
+      }
+    },
+    "sensor": {
+      "guest_devices": {
+        "name": "Guest devices"
+      },
+      "employee_devices": {
+        "name": "Employee devices"
+      },
+      "fixed_devices": {
+        "name": "Fixed devices"
+      },
+      "room_state": {
+        "name": "State",
+        "state": {
+          "empty": "Empty",
+          "violation": "Violation",
+          "staff_visit": "Staff visit",
+          "sold": "Sold",
+          "cleaning_not_started": "Cleaning not started",
+          "cleaning_in_progress": "Cleaning in progress"
+        }
+      }
+    },
+    "select": {
+      "room_status": {
+        "name": "Status",
+        "state": {
+          "vacant": "Vacant",
+          "sold": "Sold",
+          "cleaning": "Cleaning"
+        }
+      }
+    }
+  },
+  "services": {
+    "ap_area_report": {
+      "name": "AP → Area report",
+      "description": "Lists every access point with its HA Area and flags APs without an Area or with an Area that differs from the expected table.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Only needed with several controllers."
+        },
+        "mapping": {
+          "name": "Expected mapping",
+          "description": "MAC → room (MAC as key, room name as value)."
+        },
+        "csv": {
+          "name": "Expected CSV",
+          "description": "CSV with columns mac and area (or room)."
+        }
+      }
+    },
+    "assign_ap_areas": {
+      "name": "Assign AP Areas",
+      "description": "Sets each access point's HA Area from a MAC → room table. APs are matched by MAC, not by name.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Only needed with several controllers."
+        },
+        "mapping": {
+          "name": "Mapping",
+          "description": "MAC → room (MAC as key, room name as value)."
+        },
+        "csv": {
+          "name": "CSV",
+          "description": "CSV with columns mac and area (or room)."
+        },
+        "create_missing_areas": {
+          "name": "Create missing Areas",
+          "description": "Create an Area if no Area with that name exists."
+        }
+      }
+    },
+    "import_devices": {
+      "name": "Import devices",
+      "description": "Imports fixed/employee devices from CSV (mac, name, category, owner, note).",
+      "fields": {
+        "csv": {
+          "name": "CSV",
+          "description": "CSV text."
+        },
+        "replace": {
+          "name": "Replace",
+          "description": "Replace the whole list instead of merging."
+        },
+        "default_category": {
+          "name": "Default category",
+          "description": "Used for rows without a category."
+        }
+      }
+    },
+    "export_devices": {
+      "name": "Export devices",
+      "description": "Returns the device list as CSV."
     }
   }
 }

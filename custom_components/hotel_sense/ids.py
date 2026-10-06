@@ -9,6 +9,7 @@ Format (Master ТЗ v1.0, section 6.2)::
     ap:<site_id>:<mac>[:<key>]        AP-scoped entity (tracker has no key)
     client:<site_id>:<mac>[:<key>]    client-scoped entity (tracker has no key)
     update:<site_id>:<mac>            AP firmware update entity
+    room:<site_id>:<area_id>[:<key>]  room (HA Area) presence entity / device
 
 ``<mac>`` is always the Omada notation (upper-case, dash separated) so that
 ``:`` is an unambiguous separator. ``<key>`` is the entity description key
@@ -26,6 +27,7 @@ from dataclasses import dataclass
 NS_AP = "ap"
 NS_CLIENT = "client"
 NS_UPDATE = "update"
+NS_ROOM = "room"  # keyed by HA area_id, not by MAC: see make_room_unique_id
 
 NAMESPACES = (NS_AP, NS_CLIENT, NS_UPDATE)
 
@@ -78,3 +80,10 @@ def parse_unique_id(unique_id: str) -> ParsedId | None:
 
     return None
 
+
+def make_room_unique_id(site_id: str, area_id: str, key: str | None = None) -> str:
+    """Unique ID of a room entity (``key``) or of the room device (no key)."""
+    if not site_id or not area_id:
+        raise ValueError("site_id and area_id are required")
+    uid = f"{NS_ROOM}:{site_id}:{area_id}"
+    return f"{uid}:{key}" if key else uid

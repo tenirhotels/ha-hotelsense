@@ -6,6 +6,7 @@ PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.DEVICE_TRACKER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.UPDATE,
@@ -29,3 +30,17 @@ CONF_ENABLE_DEVICE_CLIENTS_SENSORS = "enable_device_clients_sensors"
 ATTR_MANUFACTURER = "TP-Link"
 ATTR_CONTROLLER_MODEL = "Omada Controller"
 CLIENTS = "clients"
+
+# Presence (Stage A)
+CONF_PRESENCE_TIMEOUT = "presence_timeout"  # minutes
+CONF_ROAMING_DEBOUNCE = "roaming_debounce"  # seconds
+CONF_MIN_RSSI = "min_rssi"  # dBm, 0 = filter off
+CONF_COMMON_AREAS = "common_areas"  # areas without room status / violations
+DEFAULT_PRESENCE_TIMEOUT = 5
+DEFAULT_ROAMING_DEBOUNCE = 30
+DEFAULT_MIN_RSSI = 0
+
+STORAGE_VERSION = 1
+STORAGE_KEY_DEVICES = f"{DOMAIN}.devices"
+
+EVENT_ROOM_STATE_CHANGED = f"{DOMAIN}_room_state_changed"
