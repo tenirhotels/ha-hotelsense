@@ -59,6 +59,10 @@ and entities.
    into a new dashboard (Raw configuration editor). If your Area IDs are not
    `room_01`…`room_10` / `admin_house`, regenerate it:
    `python scripts/generate_dashboard.py --rooms <area ids> --common <area ids>`.
+   **Rooms & Wi-Fi** (English): [`dashboards/hotel_sense_wifi_en.yaml`](dashboards/hotel_sense_wifi_en.yaml):
+   per room the devices grouped by Wi-Fi network (SSID), with guest/staff, type,
+   signal and online state; fixed equipment is not shown. Regenerate with
+   `scripts/generate_wifi_dashboard.py` (same `--rooms` / `--common`).
 
 ### Exely PMS: check-in / check-out webhook
 

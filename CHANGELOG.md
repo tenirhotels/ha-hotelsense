@@ -1,3 +1,6 @@
+# Hotel Sense (unreleased)
+- "Rooms & Wi-Fi" dashboard (English): devices per room grouped by SSID, guest/staff, type, signal, online; fixed equipment hidden; network overview
+
 # Hotel Sense 0.2.1
 - Room status select shows who set the status: `source` = manual / exely / restored (after a restart), `changed_at`, and `set_by` for a restored status
 - Controller outage: a failing re-login no longer aborts the poll; rooms are flagged `data_stale`
