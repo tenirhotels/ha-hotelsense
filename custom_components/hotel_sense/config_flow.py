@@ -558,23 +558,21 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
     # ------------------------------------------------------------------ #
     # Exely PMS webhook (check-in / check-out)
     # ------------------------------------------------------------------ #
-    async def async_step_exely(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_exely(self, user_input: dict[str, Any] | None = None,
+                               step_id: str = "exely") -> ConfigFlowResult:
         receiver = self.controller.exely
-        notice = ""
         if user_input is not None:
             self.options[CONF_EXELY_ROOM_MAP] = user_input.get(CONF_EXELY_ROOM_MAP, "")
             new_key = user_input.get(CONF_EXELY_NEW_KEY, False)
             new_url = user_input.get(CONF_EXELY_NEW_URL, False)
             if not (new_key or new_url):
                 return await self._update_options()
-            # Rotate now (the old key/address stops working) and show the new values.
+            # Rotate now (the old key/address stops working) and show the new values
+            # on a step whose (translated) description says they are new.
             receiver.async_rotate(api_key=new_key, url=new_url)
-            ru = (self.hass.config.language or "").startswith("ru")
-            parts = [n for n, on in (("API-ключ" if ru else "API key", new_key), ("URL", new_url)) if on]
-            notice = ("⚠️ Сгенерированы новые: " if ru else "⚠️ Regenerated: ") + ", ".join(parts) + (
-                ". Обновите их в Exely.\n\n" if ru else ". Update them in Exely.\n\n")
+            step_id = "exely_rotated"
         return self.async_show_form(
-            step_id="exely",
+            step_id=step_id,
             data_schema=vol.Schema({
                 vol.Optional(CONF_EXELY_ROOM_MAP,
                              default=self.options.get(CONF_EXELY_ROOM_MAP, "")):
@@ -582,6 +580,8 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(CONF_EXELY_NEW_KEY, default=False): bool,
                 vol.Optional(CONF_EXELY_NEW_URL, default=False): bool,
             }),
-            description_placeholders={"url": receiver.url(), "api_key": receiver.api_key,
-                                      "notice": notice},
+            description_placeholders={"url": receiver.url(), "api_key": receiver.api_key},
         )
+
+    async def async_step_exely_rotated(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self.async_step_exely(user_input)

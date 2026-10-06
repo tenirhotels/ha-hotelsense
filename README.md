@@ -11,6 +11,10 @@
 
 ### Setup (once)
 
+The integration's menus, entity names and states follow each user's interface
+language (Profile → Language); English and Russian are included. After an
+update, reload the browser page (Ctrl+F5) so new texts are picked up.
+
 Hotel Sense adds only the **controller** and the **access points** as devices.
 Connected clients (phones, TVs, air conditioners …) are read directly for
 presence and get no devices; switches and gateways are skipped. Per-client
@@ -51,6 +55,7 @@ and entities.
    of common areas (no status / no violations; default: every Area whose name
    does not start with "Room"/"Номер").
 5. **Dashboard.** Paste [`dashboards/hotel_sense_rooms.yaml`](dashboards/hotel_sense_rooms.yaml)
+   (Russian) or [`dashboards/hotel_sense_rooms_en.yaml`](dashboards/hotel_sense_rooms_en.yaml) (English)
    into a new dashboard (Raw configuration editor). If your Area IDs are not
    `room_01`…`room_10` / `admin_house`, regenerate it:
    `python scripts/generate_dashboard.py --rooms <area ids> --common <area ids>`.

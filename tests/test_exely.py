@@ -216,11 +216,10 @@ async def test_regenerate_api_key(hass, make_entry, patch_api, hass_client_no_au
 
     result = await _rotate(hass, entry, exely_new_key=True)
     # Form is shown again with the new key, so it can be copied to Exely.
-    assert result["step_id"] == "exely"
+    assert result["step_id"] == "exely_rotated"
     new_key = entry.data[CONF_EXELY_API_KEY]
     assert new_key != old_key and len(new_key) >= 24
     assert result["description_placeholders"]["api_key"] == new_key
-    assert "API key" in result["description_placeholders"]["notice"]
     assert entry.data[CONF_EXELY_WEBHOOK_ID] == webhook_id  # URL unchanged
 
     assert (await _post(client, entry, {"event": "CheckIn", "room": "06"}, key=old_key)).status == 401
