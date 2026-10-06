@@ -1,0 +1,285 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Hotel Sense - Powered by Omada",
+        "description": "Параметры подключения к контроллеру Omada.",
+        "data": {
+          "url": "URL",
+          "site": "Сайт",
+          "username": "Имя пользователя",
+          "password": "Пароль",
+          "verify_ssl": "Проверять SSL"
+        }
+      },
+      "reconfigure": {
+        "title": "Hotel Sense - Powered by Omada",
+        "description": "Параметры подключения к контроллеру Omada.",
+        "data": {
+          "url": "URL",
+          "site": "Сайт",
+          "username": "Имя пользователя",
+          "password": "Пароль",
+          "verify_ssl": "Проверять SSL"
+        }
+      }
+    },
+    "error": {
+      "service_unavailable": "Не удалось подключиться.",
+      "ssl_error": "Не удалось проверить SSL-сертификат.",
+      "invalid_url": "Неверный URL. Формат: http(s)://(host)",
+      "faulty_credentials": "Неверное имя пользователя или пароль.",
+      "api_error": "Ошибка API, подробности в логах.",
+      "unknown_site": "Не удалось получить сайт. Проверьте его имя.",
+      "unsupported_version": "Версия контроллера не поддерживается. Обновите Omada."
+    },
+    "abort": {
+      "reconfigure_successful": "Настройки обновлены."
+    }
+  },
+  "options": {
+    "step": {
+      "device_tracker": {
+        "title": "Настройки Hotel Sense",
+        "description": "Опрос контроллера",
+        "data": {
+          "scan_interval": "Интервал опроса",
+          "scan_interval_details": "Интервал опроса деталей",
+          "track_clients": "Отслеживать клиентов",
+          "track_devices": "Отслеживать устройства Omada"
+        }
+      },
+      "client_options": {
+        "title": "Настройки Hotel Sense",
+        "description": "Отслеживание клиентов",
+        "data": {
+          "enable_client_bandwidth_sensors": "Сенсоры трафика",
+          "enable_client_uptime_sensors": "Сенсоры аптайма",
+          "enable_client_block_switch": "Переключатель блокировки клиента",
+          "disconnect_timeout": "Таймаут отключения трекера (минуты)",
+          "ssid_filter": "SSID для отслеживания беспроводных клиентов"
+        }
+      },
+      "device_options": {
+        "title": "Настройки Hotel Sense",
+        "description": "Отслеживание устройств Omada",
+        "data": {
+          "enable_device_bandwidth_sensors": "Сенсоры трафика",
+          "enable_device_statistics_sensors": "Сенсоры CPU, памяти и аптайма",
+          "enable_device_clients_sensors": "Сенсоры числа клиентов",
+          "enable_device_radio_utilization_sensors": "Сенсоры загрузки радио",
+          "enable_device_controls": "Управление устройствами"
+        }
+      },
+      "init": {
+        "title": "Настройки Hotel Sense",
+        "menu_options": {
+          "device_tracker": "Опрос Omada и сущности",
+          "presence": "Присутствие в номерах",
+          "device_list": "Фиксированные устройства и сотрудники"
+        }
+      },
+      "presence": {
+        "title": "Присутствие в номерах",
+        "description": "Как устройства привязываются к помещениям (Area в HA у точек доступа).",
+        "data": {
+          "presence_timeout": "Таймаут отключения (минуты)",
+          "roaming_debounce": "Задержка роуминга (секунды)",
+          "min_rssi": "Минимальный RSSI для смены помещения (дБм, 0 = выкл.)",
+          "common_areas": "Служебные помещения (без статуса и нарушений)"
+        },
+        "data_description": {
+          "presence_timeout": "Устройство, пропавшее из Wi-Fi, считается в номере ещё столько времени.",
+          "roaming_debounce": "Устройство переносится в другое помещение, только если продержалось на его точке столько времени.",
+          "min_rssi": "Более слабый сигнал не переносит устройство в другое помещение (соседняя точка). Порог подбирается на пилоте.",
+          "common_areas": "Например, Admin House: присутствие показывается, но статуса номера и нарушений нет."
+        }
+      },
+      "device_list": {
+        "title": "Фиксированные устройства и сотрудники",
+        "description": "Фиксированных устройств: {fixed}. Устройств сотрудников: {employee}.",
+        "menu_options": {
+          "device_add": "Добавить устройство",
+          "device_edit_select": "Изменить устройство",
+          "device_delete": "Удалить устройства",
+          "device_import": "Импорт CSV",
+          "device_export": "Экспорт CSV",
+          "finish": "Готово"
+        }
+      },
+      "device_add": {
+        "title": "Добавить устройство",
+        "data": {
+          "mac": "MAC-адрес",
+          "name": "Название",
+          "category": "Категория",
+          "owner": "Владелец (сотрудник)",
+          "note": "Примечание"
+        }
+      },
+      "device_edit_select": {
+        "title": "Изменить устройство",
+        "data": {
+          "mac": "Устройство"
+        }
+      },
+      "device_edit": {
+        "title": "Изменить устройство",
+        "data": {
+          "mac": "MAC-адрес",
+          "name": "Название",
+          "category": "Категория",
+          "owner": "Владелец (сотрудник)",
+          "note": "Примечание"
+        }
+      },
+      "device_delete": {
+        "title": "Удалить устройства",
+        "data": {
+          "devices": "Устройства для удаления"
+        }
+      },
+      "device_import": {
+        "title": "Импорт CSV",
+        "description": "Колонки: mac, name, category (fixed/employee), owner, note. MAC в любом формате. Разделитель — запятая или точка с запятой.\n{result}",
+        "data": {
+          "csv": "CSV",
+          "default_category": "Категория для строк без категории",
+          "replace": "Заменить весь список"
+        }
+      },
+      "device_export": {
+        "title": "Экспорт CSV",
+        "description": "Скопируйте список ниже.",
+        "data": {
+          "csv": "CSV"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Неверный MAC-адрес.",
+      "duplicate_mac": "Этот MAC-адрес уже есть в списке.",
+      "import_errors": "Часть строк не импортирована. Исправьте их и повторите импорт."
+    },
+    "abort": {
+      "no_devices": "Список устройств пуст."
+    }
+  },
+  "selector": {
+    "category": {
+      "options": {
+        "fixed": "Фиксированное (оборудование)",
+        "employee": "Сотрудник"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "guest_presence": {
+        "name": "Присутствие гостей"
+      },
+      "employee_presence": {
+        "name": "Присутствие сотрудников"
+      },
+      "violation": {
+        "name": "Нарушение"
+      }
+    },
+    "sensor": {
+      "guest_devices": {
+        "name": "Устройства гостей"
+      },
+      "employee_devices": {
+        "name": "Устройства сотрудников"
+      },
+      "fixed_devices": {
+        "name": "Фиксированные устройства"
+      },
+      "room_state": {
+        "name": "Состояние",
+        "state": {
+          "empty": "Пусто",
+          "violation": "Нарушение",
+          "staff_visit": "Визит сотрудника",
+          "sold": "Продан",
+          "cleaning_not_started": "Уборка не началась",
+          "cleaning_in_progress": "Идёт уборка"
+        }
+      }
+    },
+    "select": {
+      "room_status": {
+        "name": "Статус",
+        "state": {
+          "vacant": "Свободен",
+          "sold": "Продан",
+          "cleaning": "Уборка"
+        }
+      }
+    }
+  },
+  "services": {
+    "ap_area_report": {
+      "name": "Отчёт AP → Area",
+      "description": "Список точек доступа с их Area в HA; отмечает точки без Area и с Area, не совпадающей с ожидаемой таблицей.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Нужно только при нескольких контроллерах."
+        },
+        "mapping": {
+          "name": "Ожидаемая таблица",
+          "description": "MAC → помещение, например {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+        },
+        "csv": {
+          "name": "Ожидаемый CSV",
+          "description": "CSV с колонками mac и area (или room)."
+        }
+      }
+    },
+    "assign_ap_areas": {
+      "name": "Назначить Area точкам",
+      "description": "Назначает Area точкам доступа по таблице MAC → помещение. Точки ищутся по MAC, а не по имени.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Нужно только при нескольких контроллерах."
+        },
+        "mapping": {
+          "name": "Таблица",
+          "description": "MAC → помещение, например {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+        },
+        "csv": {
+          "name": "CSV",
+          "description": "CSV с колонками mac и area (или room)."
+        },
+        "create_missing_areas": {
+          "name": "Создавать недостающие Area",
+          "description": "Создать Area, если Area с таким именем нет."
+        }
+      }
+    },
+    "import_devices": {
+      "name": "Импорт устройств",
+      "description": "Импорт фиксированных устройств и устройств сотрудников из CSV (mac, name, category, owner, note).",
+      "fields": {
+        "csv": {
+          "name": "CSV",
+          "description": "Текст CSV."
+        },
+        "replace": {
+          "name": "Заменить",
+          "description": "Заменить весь список вместо слияния."
+        },
+        "default_category": {
+          "name": "Категория по умолчанию",
+          "description": "Для строк без категории."
+        }
+      }
+    },
+    "export_devices": {
+      "name": "Экспорт устройств",
+      "description": "Возвращает список устройств в CSV."
+    }
+  }
+}

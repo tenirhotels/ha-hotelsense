@@ -8,10 +8,17 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.const import CONF_URL, CONF_USERNAME, CONF_PASSWORD, CONF_VERIFY_SSL
 from homeassistant.core import callback
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
 )
 
 from .api.errors import (
@@ -41,8 +48,28 @@ from .const import (
     CONF_ENABLE_DEVICE_CONTROLS,
     CONF_ENABLE_DEVICE_STATISTICS_SENSORS,
     CONF_ENABLE_DEVICE_CLIENTS_SENSORS,
+    CONF_PRESENCE_TIMEOUT,
+    CONF_ROAMING_DEBOUNCE,
+    CONF_MIN_RSSI,
+    CONF_COMMON_AREAS,
+    DEFAULT_PRESENCE_TIMEOUT,
+    DEFAULT_ROAMING_DEBOUNCE,
+    DEFAULT_MIN_RSSI,
 )
+from .areas import resolve_ap_areas
 from .controller import OmadaController, get_api_controller
+from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
+from .storage import async_get_device_store
+
+CONF_MAC = "mac"
+CONF_NAME = "name"
+CONF_CATEGORY = "category"
+CONF_OWNER = "owner"
+CONF_NOTE = "note"
+CONF_DEVICES = "devices"
+CONF_CSV = "csv"
+CONF_REPLACE = "replace"
+CONF_DEFAULT_CATEGORY = "default_category"
 
 
 class OmadaFlowHandler(config_entries.ConfigFlow, domain=OMADA_DOMAIN):
@@ -209,6 +236,7 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         self.options: dict[str, Any] | None = None
         self.controller: OmadaController | None = None
+        self._editing_mac: str | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if not self.options:
@@ -218,7 +246,10 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
             self.config_entry.entry_id
         ]
 
-        return await self.async_step_device_tracker()
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["device_tracker", "presence", "device_list"],
+        )
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -339,3 +370,182 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def _update_options(self) -> ConfigFlowResult:
         return self.async_create_entry(title="", data=self.options)
+
+    # ------------------------------------------------------------------ #
+    # Presence (Stage A)
+    # ------------------------------------------------------------------ #
+    async def async_step_presence(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        manager = self.controller.presence
+        if user_input is not None:
+            self.options.update(user_input)
+            return await self._update_options()
+
+        areas = ar.async_get(self.hass)
+        area_ids = sorted({a for a in resolve_ap_areas(self.hass, self.controller).values() if a}
+                          | set(self.options.get(CONF_COMMON_AREAS) or []))
+        area_options = [
+            SelectOptionDict(value=area_id, label=(area.name if (area := areas.async_get_area(area_id)) else area_id))
+            for area_id in area_ids
+        ]
+        common_default = [a for a in area_ids
+                          if manager.is_common_area(a, next((o["label"] for o in area_options if o["value"] == a), a))]
+
+        return self.async_show_form(
+            step_id="presence",
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_PRESENCE_TIMEOUT,
+                    default=self.options.get(CONF_PRESENCE_TIMEOUT, DEFAULT_PRESENCE_TIMEOUT),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=1, max=120, mode=NumberSelectorMode.BOX, unit_of_measurement="min")),
+                vol.Optional(
+                    CONF_ROAMING_DEBOUNCE,
+                    default=self.options.get(CONF_ROAMING_DEBOUNCE, DEFAULT_ROAMING_DEBOUNCE),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=0, max=600, mode=NumberSelectorMode.BOX, unit_of_measurement="s")),
+                vol.Optional(
+                    CONF_MIN_RSSI,
+                    default=self.options.get(CONF_MIN_RSSI, DEFAULT_MIN_RSSI),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=-100, max=0, mode=NumberSelectorMode.BOX, unit_of_measurement="dBm")),
+                vol.Optional(CONF_COMMON_AREAS, default=common_default): SelectSelector(
+                    SelectSelectorConfig(options=area_options, multiple=True,
+                                         mode=SelectSelectorMode.LIST)),
+            }),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Known devices: fixed equipment / employee devices
+    # ------------------------------------------------------------------ #
+    async def async_step_device_list(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        store = await async_get_device_store(self.hass)
+        fixed = sum(1 for d in store.devices if d.category == CATEGORY_FIXED)
+        return self.async_show_menu(
+            step_id="device_list",
+            menu_options=["device_add", "device_edit_select", "device_delete",
+                          "device_import", "device_export", "finish"],
+            description_placeholders={
+                "fixed": str(fixed),
+                "employee": str(len(store.devices) - fixed),
+            },
+        )
+
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._update_options()
+
+    @staticmethod
+    def _device_schema(device: KnownDevice | None = None) -> vol.Schema:
+        d = device
+        return vol.Schema({
+            vol.Required(CONF_MAC, default=d.mac if d else ""): str,
+            vol.Optional(CONF_NAME, default=d.name if d else ""): str,
+            vol.Required(CONF_CATEGORY, default=d.category if d else CATEGORY_FIXED): SelectSelector(
+                SelectSelectorConfig(options=list(CATEGORIES), translation_key=CONF_CATEGORY,
+                                     mode=SelectSelectorMode.LIST)),
+            vol.Optional(CONF_OWNER, default=d.owner if d else ""): str,
+            vol.Optional(CONF_NOTE, default=d.note if d else ""): str,
+        })
+
+    async def _save_device(self, user_input: dict[str, Any], replace_mac: str | None,
+                           errors: dict[str, str]) -> bool:
+        try:
+            device = KnownDevice(
+                mac=user_input[CONF_MAC], category=user_input[CONF_CATEGORY],
+                name=user_input.get(CONF_NAME, ""), owner=user_input.get(CONF_OWNER, ""),
+                note=user_input.get(CONF_NOTE, ""))
+        except ValueError:
+            errors[CONF_MAC] = "invalid_mac"
+            return False
+        store = await async_get_device_store(self.hass)
+        if device.mac != replace_mac and device.mac in store.devices:
+            errors[CONF_MAC] = "duplicate_mac"
+            return False
+        await store.async_upsert(device, replace_mac=replace_mac)
+        return True
+
+    async def async_step_device_add(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None and await self._save_device(user_input, None, errors):
+            return await self.async_step_device_list()
+        schema = self._device_schema()
+        if user_input is not None:
+            schema = self.add_suggested_values_to_schema(schema, user_input)
+        return self.async_show_form(step_id="device_add", data_schema=schema, errors=errors)
+
+    def _device_choices(self, store) -> list[SelectOptionDict]:
+        return [SelectOptionDict(value=d.mac, label=f"{d.name or d.mac} ({d.mac}, {d.category})")
+                for d in store.devices]
+
+    async def async_step_device_edit_select(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        store = await async_get_device_store(self.hass)
+        if not len(store.devices):
+            return self.async_abort(reason="no_devices")
+        if user_input is not None:
+            self._editing_mac = user_input[CONF_MAC]
+            return await self.async_step_device_edit()
+        return self.async_show_form(
+            step_id="device_edit_select",
+            data_schema=vol.Schema({vol.Required(CONF_MAC): SelectSelector(
+                SelectSelectorConfig(options=self._device_choices(store),
+                                     mode=SelectSelectorMode.DROPDOWN))}),
+        )
+
+    async def async_step_device_edit(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        store = await async_get_device_store(self.hass)
+        errors: dict[str, str] = {}
+        if user_input is not None and await self._save_device(user_input, self._editing_mac, errors):
+            return await self.async_step_device_list()
+        schema = self._device_schema(store.devices.get(self._editing_mac))
+        if user_input is not None:
+            schema = self.add_suggested_values_to_schema(schema, user_input)
+        return self.async_show_form(step_id="device_edit", data_schema=schema, errors=errors)
+
+    async def async_step_device_delete(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        store = await async_get_device_store(self.hass)
+        if not len(store.devices):
+            return self.async_abort(reason="no_devices")
+        if user_input is not None:
+            await store.async_remove(user_input.get(CONF_DEVICES, []))
+            return await self.async_step_device_list()
+        return self.async_show_form(
+            step_id="device_delete",
+            data_schema=vol.Schema({vol.Optional(CONF_DEVICES, default=[]): SelectSelector(
+                SelectSelectorConfig(options=self._device_choices(store), multiple=True,
+                                     mode=SelectSelectorMode.LIST))}),
+        )
+
+    async def async_step_device_import(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        placeholders = {"result": ""}
+        if user_input is not None:
+            store = await async_get_device_store(self.hass)
+            result = await store.async_import_csv(
+                user_input[CONF_CSV], replace=user_input.get(CONF_REPLACE, False),
+                default_category=user_input.get(CONF_DEFAULT_CATEGORY))
+            if not result.errors:
+                return await self.async_step_device_list()
+            errors["base"] = "import_errors"
+            placeholders["result"] = (
+                f"added {result.added}, updated {result.updated}, removed {result.removed}\n"
+                + "\n".join(result.errors[:20]))
+        schema = vol.Schema({
+            vol.Required(CONF_CSV): TextSelector(TextSelectorConfig(multiline=True)),
+            vol.Optional(CONF_DEFAULT_CATEGORY, default=CATEGORY_FIXED): SelectSelector(
+                SelectSelectorConfig(options=list(CATEGORIES), translation_key=CONF_CATEGORY,
+                                     mode=SelectSelectorMode.LIST)),
+            vol.Optional(CONF_REPLACE, default=False): bool,
+        })
+        if user_input is not None:
+            schema = self.add_suggested_values_to_schema(schema, user_input)
+        return self.async_show_form(step_id="device_import", data_schema=schema,
+                                    errors=errors, description_placeholders=placeholders)
+
+    async def async_step_device_export(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return await self.async_step_device_list()
+        store = await async_get_device_store(self.hass)
+        return self.async_show_form(
+            step_id="device_export",
+            data_schema=vol.Schema({vol.Optional(CONF_CSV, default=store.devices.export_csv()):
+                                    TextSelector(TextSelectorConfig(multiline=True))}),
+        )

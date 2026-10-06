@@ -1,0 +1,54 @@
+ap_area_report:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    mapping:
+      example: '{"AA-BB-CC-DD-EE-01": "Room 01"}'
+      selector:
+        object:
+    csv:
+      selector:
+        text:
+          multiline: true
+
+assign_ap_areas:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    mapping:
+      example: '{"AA-BB-CC-DD-EE-01": "Room 01"}'
+      selector:
+        object:
+    csv:
+      selector:
+        text:
+          multiline: true
+    create_missing_areas:
+      default: false
+      selector:
+        boolean:
+
+import_devices:
+  fields:
+    csv:
+      required: true
+      selector:
+        text:
+          multiline: true
+    replace:
+      default: false
+      selector:
+        boolean:
+    default_category:
+      selector:
+        select:
+          options:
+            - fixed
+            - employee
+          translation_key: category
+
+export_devices:

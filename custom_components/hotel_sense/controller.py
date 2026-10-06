@@ -56,6 +56,7 @@ class OmadaController:
         self.option_device_radio_utilization_sensors = False
         self.option_device_controls = False
         self.available = True
+        self.presence = None  # PresenceManager, set up in __init__.async_setup_entry
 
         self.load_config_entry_options()
 

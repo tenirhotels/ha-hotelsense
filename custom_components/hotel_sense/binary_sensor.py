@@ -22,6 +22,7 @@ from .omada_controller_entity import (OmadaControllerEntity, OmadaControllerEnti
                                       device_info_fn as controller_device_info_fn,
                                       unique_id_fn as controller_unique_id_fn)
 from .ids import NS_CLIENT
+from .room_entity import async_setup_room_platform, binary_sensor_factory
 from .omada_entity import (OmadaEntity, OmadaEntityDescription, client_device_info_fn)
 
 AI_OPTIMIZATION_SENSOR = "ai_optimization"
@@ -154,6 +155,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         )
 
     items_added()
+
+    async_setup_room_platform(hass, config_entry, async_add_entities, binary_sensor_factory)
 
 
 class OmadaControllerBinarySensorEntity(OmadaControllerEntity, BinarySensorEntity):

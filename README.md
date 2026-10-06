@@ -2,6 +2,85 @@
 
 **Powered by Omada.** Presence and occupancy intelligence for Tenir Hotel on Home Assistant, built on a fork of [zachcheatham/ha-omada](https://github.com/zachcheatham/ha-omada) (Omada API client preserved). Domain: `hotel_sense`.
 
+
+## Stage A: room presence (Присутствие по номерам)
+
+> Wi-Fi shows **devices, not people**. "5 minutes of cleaning" is an indirect
+> signal; random (private) MACs can inflate device counts. Treat the dashboard
+> as "something to check", not as proof.
+
+### Setup (once)
+
+1. **Areas.** Room = Home Assistant Area (`Room 01` … `Room 10`, `Admin House`).
+2. **AP → Area.** Each access point device gets the Area of its room, either
+   in the UI or with the `hotel_sense.assign_ap_areas` service. APs are matched
+   by **MAC**, never by their name in Omada:
+
+   ```yaml
+   action: hotel_sense.assign_ap_areas
+   data:
+     csv: |
+       mac,area
+       AA-BB-CC-DD-EE-01,Room 01
+       aa:bb:cc:dd:ee:00,Admin House
+   ```
+
+   Check the result with `hotel_sense.ap_area_report` (Developer tools → Actions,
+   "return response"). Pass the same table to see APs **without an Area**,
+   **mismatching** the table, or table MACs that are **not found**.
+3. **Fixed and employee devices.** Settings → Devices & services → Hotel Sense →
+   Configure → *Fixed and employee devices*: add / edit / delete, import and
+   export CSV (`mac,name,category,owner,note`, category `fixed` or `employee`).
+   MACs are accepted in any notation (`aa:bb:..`, `AA-BB-..`, `aabb.ccdd.eeff`).
+   Same via the `hotel_sense.import_devices` / `hotel_sense.export_devices` actions.
+   The list is stored in `.storage/hotel_sense.devices` (never in this repo).
+4. **Presence options** (Configure → *Room presence*): disconnect timeout
+   (default 5 min), roaming debounce (default 30 s), minimum RSSI to move a
+   device between rooms (off by default, tune during the pilot), and the list
+   of common areas (no status / no violations; default: every Area whose name
+   does not start with "Room"/"Номер").
+5. **Dashboard.** Paste [`dashboards/hotel_sense_rooms.yaml`](dashboards/hotel_sense_rooms.yaml)
+   into a new dashboard (Raw configuration editor). If your Area IDs are not
+   `room_01`…`room_10` / `admin_house`, regenerate it:
+   `python scripts/generate_dashboard.py --rooms <area ids> --common <area ids>`.
+
+### Entities per room (`room_01` = HA area ID)
+
+| Entity | Meaning |
+|---|---|
+| `select.room_01_status` | Manual status: Свободен (`vacant`) / Продан (`sold`) / Уборка (`cleaning`); restored after restart. Replaced by Exely in Stage D |
+| `binary_sensor.room_01_guest_presence` | Guest or unknown Wi-Fi device in the room |
+| `binary_sensor.room_01_employee_presence` | Employee device in the room |
+| `binary_sensor.room_01_violation` | Possible violation (red on the dashboard) |
+| `sensor.room_01_guest_devices` / `_employee_devices` / `_fixed_devices` | Device counts; attribute `devices` lists MAC + name, `random_macs` counts private MACs |
+| `sensor.room_01_state` | Result of the rules below; attribute `data_stale` is `true` while the controller is unreachable |
+
+Common areas (Admin House) get only presence and counts.
+
+### Rules
+
+| Status | Seen | `sensor.*_state` |
+|---|---|---|
+| Свободен | guest / unknown device | `violation` (red) |
+| Свободен | only employee devices | `staff_visit` (not a violation; in the logbook) |
+| Свободен | only fixed devices / nothing | `empty` |
+| Продан | anything | `sold` |
+| Уборка | no employee device | `cleaning_not_started` (orange) |
+| Уборка | employee device | `cleaning_in_progress` |
+
+Every change of a room state also fires the `hotel_sense_room_state_changed` event.
+
+### How a device is placed in a room
+
+* Only Wi-Fi clients count; the room is the Area of the AP the client is on.
+  Client tracking must stay enabled (Omada options, on by default). The tracker
+  SSID filter does not limit presence: devices on every SSID are placed.
+* A device that disappears stays in the room for the disconnect timeout.
+* Roaming to an AP of another room is accepted after the debounce.
+* With a minimum RSSI set, weaker signals never move a device (neighbouring AP).
+* When the controller is unreachable, the last picture is kept (no mass "empty").
+* Random MACs are not merged automatically.
+
 ---
 
 # TP-Link Omada Integration for Home Assistant

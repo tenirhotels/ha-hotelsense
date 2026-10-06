@@ -1,3 +1,13 @@
+# Hotel Sense 0.2.0 (Stage A: room presence)
+- Room = HA Area, location = Area of the client's access point
+- `hotel_sense.ap_area_report` (APs without Area / mismatching a MAC table / not found) and `hotel_sense.assign_ap_areas` (MAC -> room table, matched by MAC)
+- Editable list of fixed and employee devices in `.storage` (Options flow add/edit/delete, CSV import/export, MAC normalisation; `import_devices` / `export_devices` actions)
+- Presence engine: Wi-Fi only, disconnect timeout (5 min), roaming debounce (30 s), optional minimum RSSI, outage keeps the last picture
+- Per-room entities: guest/employee presence, device counts, manual status select (Свободен/Продан/Уборка), room state and violation; `hotel_sense_room_state_changed` event
+- Lovelace rooms dashboard (built-in cards, red violations) and its generator
+- Russian translation
+- Restored CI workflows lost in the web upload; hassfest runs on every push
+
 # Hotel Sense 0.1.0 (Phase 0)
 - Renamed to Hotel Sense (domain `hotel_sense`, Powered by Omada). Fork of zachcheatham/ha-omada 0.9.0 (dev be6985d); Omada API/core unchanged (only additive `Controller.site_id`)
 - Unique IDs namespaced: `ap:<site>:<mac>[:<key>]`, `client:<site>:<mac>[:<key>]`, `update:<site>:<mac>` (fresh domain: no migration from upstream)
