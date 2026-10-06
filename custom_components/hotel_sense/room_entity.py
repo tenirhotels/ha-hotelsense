@@ -150,7 +150,8 @@ class RoomCountSensor(RoomEntity, SensorEntity):
         for mac in sorted(self._macs()):
             kind, source = self.manager.device_kind(mac)
             devices.append({"mac": mac, "name": self.manager.client_name(mac),
-                            "type": kind, "type_source": source})
+                            "type": kind, "type_source": source,
+                            **self.manager.connection_info(mac)})
             types[kind] = types.get(kind, 0) + 1
         attrs = {
             "devices": devices,

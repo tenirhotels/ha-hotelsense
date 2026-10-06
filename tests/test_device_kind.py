@@ -96,8 +96,9 @@ async def test_room_sensor_shows_device_types(hass, make_entry, patch_api):
     # The owner's list wins.
     await _import(hass, f"mac,name,category,device_type\n{SHARED_MAC},Desk PC,employee,computer\n")
     attrs = hass.states.get("sensor.room_06_employee_devices").attributes
-    assert attrs["devices"][0] | {} == {"mac": SHARED_MAC, "name": "Desk PC", "type": "computer",
-                                        "type_source": "list"}
+    device = attrs["devices"][0]
+    assert {k: device[k] for k in ("mac", "name", "type", "type_source")} == {
+        "mac": SHARED_MAC, "name": "Desk PC", "type": "computer", "type_source": "list"}
     assert attrs["types"] == {"computer": 1}
 
 

@@ -56,6 +56,7 @@ class Observation:
     mac: str
     ap_mac: str | None
     rssi: int | None = None
+    ssid: str | None = None
 
 
 @dataclass
@@ -65,6 +66,7 @@ class Track:
     last_seen: float
     ap_mac: str | None = None
     rssi: int | None = None
+    ssid: str | None = None
     pending_area_id: str | None = None
     pending_since: float | None = None
 
@@ -137,12 +139,13 @@ class PresenceEngine:
             track = self.tracks.get(obs.mac)
 
             if track is None:
-                self.tracks[obs.mac] = Track(obs.mac, candidate, now, obs.ap_mac, obs.rssi)
+                self.tracks[obs.mac] = Track(obs.mac, candidate, now, obs.ap_mac, obs.rssi, obs.ssid)
                 continue
 
             track.last_seen = now
             track.ap_mac = obs.ap_mac
             track.rssi = obs.rssi
+            track.ssid = obs.ssid
 
             if weak or candidate == track.area_id:
                 # A weak signal never moves a device; a matching one cancels roaming.
