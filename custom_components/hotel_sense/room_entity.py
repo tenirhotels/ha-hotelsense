@@ -22,7 +22,8 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
 from .ids import make_room_unique_id
-from .presence import ROOM_STATES, STATE_VIOLATION, STATUS_VACANT, STATUSES
+from .presence import (LEGACY_STATUSES, ROOM_STATES, STATE_VIOLATION, STATUS_CHECKED_OUT,
+                       STATUSES)
 from .presence_manager import PresenceManager, RoomSnapshot
 
 MANUFACTURER = "Hotel Sense"
@@ -189,8 +190,65 @@ def sensor_factory(manager: PresenceManager, room: RoomSnapshot) -> list[RoomEnt
     return entities
 
 
+class MisplacedFixedDevicesSensor(SensorEntity):
+    """Hotel-wide double check: fixed devices seen outside their ``room``."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "misplaced_devices"
+    _attr_native_unit_of_measurement = "devices"
+    _attr_icon = "mdi:map-marker-alert"
+
+    def __init__(self, manager: PresenceManager, device_info: DeviceInfo) -> None:
+        self.manager = manager
+        self.entity_id = "sensor.hotel_sense_misplaced_devices"
+        self._attr_unique_id = f"misplaced_devices-{manager.controller.api.controller_id}"
+        self._attr_device_info = device_info
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, self.manager.signal_presence, self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> int:
+        return len(self.manager.misplaced_fixed_devices())
+
+    @property
+    def extra_state_attributes(self):
+        return {"devices": self.manager.misplaced_fixed_devices(),
+                "data_stale": self.manager.data_stale}
+
+
+class ExelyLastEventSensor(SensorEntity):
+    """Result of the last Exely webhook: applied / partial / unmatched / invalid."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "exely_last_event"
+    _attr_icon = "mdi:webhook"
+
+    def __init__(self, receiver, device_info: DeviceInfo) -> None:
+        self.receiver = receiver
+        self.entity_id = "sensor.hotel_sense_exely_last_event"
+        self._attr_unique_id = f"exely_last_event-{receiver.manager.controller.api.controller_id}"
+        self._attr_device_info = device_info
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, self.receiver.signal, self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> str | None:
+        return self.receiver.last["result"] if self.receiver.last else None
+
+    @property
+    def extra_state_attributes(self):
+        # Extracted fields only; raw payloads (guest data) are not stored in states.
+        return dict(self.receiver.last or {})
+
+
 # --------------------------------------------------------------------------- #
-# select: manual room status (until the Exely PMS integration, Stage D)
+# select: room status, Exely check-in / check-out (manual until the webhook)
 # --------------------------------------------------------------------------- #
 class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
     _platform_domain = "select"
@@ -202,7 +260,9 @@ class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        status = last.state if last and last.state in STATUSES else STATUS_VACANT
+        status = LEGACY_STATUSES.get(last.state, last.state) if last else None
+        if status not in STATUSES:
+            status = STATUS_CHECKED_OUT
         self.manager.async_set_status(self.area_id, status)
 
     @property

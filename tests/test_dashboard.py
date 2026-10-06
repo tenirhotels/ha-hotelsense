@@ -9,7 +9,10 @@ from pathlib import Path
 import yaml
 from homeassistant.helpers.template import Template
 
-from .fakes import AP_WF06, AP_WF07
+from custom_components.hotel_sense.const import DOMAIN
+from custom_components.hotel_sense.storage import async_get_device_store
+
+from .fakes import AP_WF06, AP_WF07, GUEST_PHONE, SHARED_MAC
 from .test_stage_a import _hotel
 
 ROOT = Path(__file__).parent.parent
@@ -28,7 +31,7 @@ def _cards(dashboard: dict) -> list[dict]:
             out.append(card)
             walk(card.get("cards", []))
 
-    walk(dashboard["views"][0]["cards"])
+    walk(dashboard["views"][0]["sections"])
     return out
 
 
@@ -41,7 +44,17 @@ def test_committed_dashboard_is_up_to_date():
         assert f"select.{room}_status" in referenced
         assert f"sensor.{room}_state" in referenced
     assert "sensor.admin_house_guest_devices" in referenced
-    assert len(dashboard["views"][0]["cards"]) == 1 + 10 + 1
+    view = dashboard["views"][0]
+    assert view["type"] == "sections"
+    sections = view["sections"]
+    assert len(sections) == 1 + 10 + 1
+    # Strict order: summary, Room 01 … Room 10 (state card, then its status), Admin House.
+    for number, section in enumerate(sections[1:11], start=1):
+        state_card, status_card = section["cards"]
+        assert f"sensor.room_{number:02d}_state" in state_card["content"]
+        assert status_card["entity"] == f"select.room_{number:02d}_status"
+        assert status_card["features"] == [{"type": "select-options"}]
+    assert "admin_house" in sections[-1]["cards"][0]["content"]
 
 
 async def test_dashboard_renders_and_highlights_violations(hass, make_entry, patch_api):
@@ -51,6 +64,7 @@ async def test_dashboard_renders_and_highlights_violations(hass, make_entry, pat
         assert hass.states.get(entity_id) is not None, entity_id
 
     cards = _cards(yaml.safe_load(text))
+    markdown = [c for c in cards if c["type"] == "markdown"]
     rendered = [Template(c["content"], hass).async_render(parse_result=False)
                 for c in cards if c["type"] == "markdown"]
     summary, room, admin = rendered
@@ -60,16 +74,28 @@ async def test_dashboard_renders_and_highlights_violations(hass, make_entry, pat
     assert "Гости: 2" in room
     assert "Admin House" in admin and "Гости: 0" in admin
 
-    await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "sold"}, blocking=True)
+    assert "не на своём месте" not in summary
+
+    await hass.services.async_call(DOMAIN, "import_devices", {
+        "csv": f"mac,name,category,room\n{GUEST_PHONE},AC07,fixed,Room 07\n"}, blocking=True)
     await hass.async_block_till_done()
-    summary = Template(cards[0]["content"], hass).async_render(parse_result=False)
-    room = Template(cards[2]["content"], hass).async_render(parse_result=False)
-    assert "Нарушений нет" in summary
-    assert "ha-alert" not in room and "**Room 06** — Продан" in room
+    summary = Template(markdown[0]["content"], hass).async_render(parse_result=False)
+    assert 'alert-type="warning"' in summary
+    assert "AC07: ожидается Room 07, видно в Room 06" in summary
+    await (await async_get_device_store(hass)).async_remove([GUEST_PHONE])
 
     await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "cleaning"}, blocking=True)
+        "entity_id": "select.room_06_status", "option": "checked_in"}, blocking=True)
     await hass.async_block_till_done()
-    room = Template(cards[2]["content"], hass).async_render(parse_result=False)
-    assert 'alert-type="warning"' in room and "Уборка не началась" in room
+    summary = Template(markdown[0]["content"], hass).async_render(parse_result=False)
+    room = Template(markdown[1]["content"], hass).async_render(parse_result=False)
+    assert "Нарушений нет" in summary
+    assert "ha-alert" not in room and "**Room 06** — Гость заселён" in room
+
+    await hass.services.async_call("select", "select_option", {
+        "entity_id": "select.room_06_status", "option": "checked_out"}, blocking=True)
+    await (await async_get_device_store(hass)).async_import_csv(
+        f"mac,name,category\n{GUEST_PHONE},Maid,employee\n{SHARED_MAC},AC,fixed\n")
+    await hass.async_block_till_done()
+    room = Template(markdown[1]["content"], hass).async_render(parse_result=False)
+    assert 'alert-type="info"' in room and "Визит сотрудника" in room

@@ -11,13 +11,14 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
-from .areas import resolve_ap_areas
+from .areas import resolve_ap_areas, resolve_area
 from .const import (
     CONF_COMMON_AREAS, CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE,
     DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE, DOMAIN,
     EVENT_ROOM_STATE_CHANGED,
 )
 from .mac import parse_mac
+from .device_list import CATEGORY_FIXED
 from .presence import AreaPresence, Observation, PresenceEngine, evaluate_room
 from .storage import DeviceListStore
 
@@ -176,6 +177,34 @@ class PresenceManager:
         self.async_refresh()
 
     # -- helpers for entities -------------------------------------------- #
+    def misplaced_fixed_devices(self) -> list[dict]:
+        """Fixed devices with a ``room`` that are currently located elsewhere.
+
+        A double check of the AP -> Area mapping: equipment does not move, so a
+        mismatch means swapped AP Areas, a device on a neighbouring AP, or a
+        device that was physically moved. Devices not seen right now are skipped.
+        """
+        areas = ar.async_get(self.hass)
+        result = []
+        for device in self.store.devices:
+            if device.category != CATEGORY_FIXED or not device.room:
+                continue
+            track = self.engine.tracks.get(device.mac)
+            if track is None or track.area_id is None:
+                continue
+            expected = resolve_area(self.hass, device.room)
+            if expected is not None and expected.id == track.area_id:
+                continue
+            seen = areas.async_get_area(track.area_id)
+            result.append({
+                "name": device.name or device.mac,
+                "mac": device.mac,
+                "expected": device.room,
+                "seen": seen.name if seen else track.area_id,
+                "reason": "wrong_room" if expected is not None else "unknown_room",
+            })
+        return sorted(result, key=lambda d: d["name"])
+
     def client_name(self, mac: str) -> str:
         if (known := self.store.devices.get(mac)) and known.name:
             return known.name

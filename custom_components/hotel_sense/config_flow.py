@@ -52,6 +52,7 @@ from .const import (
     CONF_ROAMING_DEBOUNCE,
     CONF_MIN_RSSI,
     CONF_COMMON_AREAS,
+    CONF_EXELY_ROOM_MAP,
     DEFAULT_PRESENCE_TIMEOUT,
     DEFAULT_ROAMING_DEBOUNCE,
     DEFAULT_MIN_RSSI,
@@ -249,7 +250,7 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_menu(
             step_id="init",
-            menu_options=["device_tracker", "presence", "device_list"],
+            menu_options=["device_tracker", "presence", "device_list", "exely"],
         )
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -550,4 +551,22 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="device_export",
             data_schema=vol.Schema({vol.Optional(CONF_CSV, default=store.devices.export_csv()):
                                     TextSelector(TextSelectorConfig(multiline=True))}),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Exely PMS webhook (check-in / check-out)
+    # ------------------------------------------------------------------ #
+    async def async_step_exely(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self.options[CONF_EXELY_ROOM_MAP] = user_input.get(CONF_EXELY_ROOM_MAP, "")
+            return await self._update_options()
+        receiver = self.controller.exely
+        return self.async_show_form(
+            step_id="exely",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_EXELY_ROOM_MAP,
+                             default=self.options.get(CONF_EXELY_ROOM_MAP, "")):
+                    TextSelector(TextSelectorConfig(multiline=True)),
+            }),
+            description_placeholders={"url": receiver.url(), "api_key": receiver.api_key},
         )

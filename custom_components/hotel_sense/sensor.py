@@ -25,7 +25,7 @@ from .omada_controller_entity import (OmadaControllerEntity, OmadaControllerEnti
                                       device_info_fn as controller_device_info_fn,
                                       unique_id_fn as controller_unique_id_fn)
 from .ids import NS_AP, NS_CLIENT
-from .room_entity import async_setup_room_platform, sensor_factory
+from .room_entity import ExelyLastEventSensor, MisplacedFixedDevicesSensor, async_setup_room_platform, sensor_factory
 from .omada_entity import (OmadaEntity, OmadaEntityDescription, device_device_info_fn,
                            client_device_info_fn)
 
@@ -888,6 +888,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     items_added()
 
     async_setup_room_platform(hass, config_entry, async_add_entities, sensor_factory)
+    async_add_entities([
+        MisplacedFixedDevicesSensor(controller.presence, controller_device_info_fn(controller.api)),
+        ExelyLastEventSensor(controller.exely, controller_device_info_fn(controller.api)),
+    ])
 
 
 class OmadaControllerSensorEntity(OmadaControllerEntity, SensorEntity):

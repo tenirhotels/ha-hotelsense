@@ -55,16 +55,39 @@ and entities.
    `room_01`…`room_10` / `admin_house`, regenerate it:
    `python scripts/generate_dashboard.py --rooms <area ids> --common <area ids>`.
 
+### Exely PMS: check-in / check-out webhook
+
+Hotel Sense receives Exely webhooks at `https://<your HA>/api/webhook/<id>` and
+sets the room status from check-in / check-out events.
+
+1. Hotel Sense → Configure → *Exely PMS (check-in / check-out)* shows the full
+   URL and the API key (both generated once, random).
+2. In Exely: Настройка гостиницы → Подключение API → your connection → Вебхуки:
+   «Использование вебхуков» = Да, URL from step 1, authentication «API-ключ»
+   with the key from step 1, events: only check-in and check-out. Save.
+3. Rooms are matched by number (Exely `1`, `01` or `101` → Area `Room 01`) only
+   when that is unambiguous; otherwise add lines like `101 = Room 01` to the room
+   mapping in the same settings page.
+
+Requests without the right `API-KEY` header are rejected (401). Everything else
+is answered with 200 so Exely does not retry. An event is applied only if it is
+clearly a check-in or a check-out and the room is found; the result is in
+`sensor.hotel_sense_exely_last_event` (`applied` / `partial` / `unmatched` /
+`invalid`). The last 20 raw payloads are kept in memory and can be downloaded
+via the integration's *Download diagnostics* — they contain guest data, mask it
+before sharing. The manual status select stays as a fallback.
+
 ### Entities per room (`room_01` = HA area ID)
 
 | Entity | Meaning |
 |---|---|
-| `select.room_01_status` | Manual status: Свободен (`vacant`) / Продан (`sold`) / Уборка (`cleaning`); restored after restart. Replaced by Exely in Stage D |
+| `select.room_01_status` | Room status: `checked_in` / `checked_out`; manual for now, set by the Exely PMS check-in/check-out webhook in Stage D; restored after restart |
 | `binary_sensor.room_01_guest_presence` | Guest or unknown Wi-Fi device in the room |
 | `binary_sensor.room_01_employee_presence` | Employee device in the room |
 | `binary_sensor.room_01_violation` | Possible violation (red on the dashboard) |
 | `sensor.room_01_guest_devices` / `_employee_devices` / `_fixed_devices` | Device counts; attribute `devices` lists MAC + name, `random_macs` counts private MACs |
 | `sensor.room_01_state` | Result of the rules below; attribute `data_stale` is `true` while the controller is unreachable |
+| `sensor.hotel_sense_misplaced_devices` | Hotel-wide double check: fixed devices with a `room` seen in another room (swapped AP Areas, neighbouring AP, device moved); attribute `devices` lists name, expected and seen room |
 
 Common areas (Admin House) get only presence and counts.
 
@@ -72,12 +95,13 @@ Common areas (Admin House) get only presence and counts.
 
 | Status | Seen | `sensor.*_state` |
 |---|---|---|
-| Свободен | guest / unknown device | `violation` (red) |
-| Свободен | only employee devices | `staff_visit` (not a violation; in the logbook) |
-| Свободен | only fixed devices / nothing | `empty` |
-| Продан | anything | `sold` |
-| Уборка | no employee device | `cleaning_not_started` (orange) |
-| Уборка | employee device | `cleaning_in_progress` |
+| Checked out | guest / unknown device | `violation` (red) |
+| Checked out | only employee devices | `staff_visit` (not a violation; in the logbook) |
+| Checked out | only fixed devices / nothing | `empty` |
+| Checked in | anything | `checked_in` |
+
+Cleaning is not a status: it will be derived from staff presence (Stage C) and,
+later, compared with the housekeeping status from Exely.
 
 Every change of a room state also fires the `hotel_sense_room_state_changed` event.
 

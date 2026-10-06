@@ -44,3 +44,9 @@ STORAGE_VERSION = 1
 STORAGE_KEY_DEVICES = f"{DOMAIN}.devices"
 
 EVENT_ROOM_STATE_CHANGED = f"{DOMAIN}_room_state_changed"
+
+# Exely PMS webhook (Stage D)
+CONF_EXELY_WEBHOOK_ID = "exely_webhook_id"  # entry.data, generated
+CONF_EXELY_API_KEY = "exely_api_key"  # entry.data, generated
+CONF_EXELY_ROOM_MAP = "exely_room_map"  # options: "101 = Room 01" lines
+EVENT_EXELY = f"{DOMAIN}_exely_event"
