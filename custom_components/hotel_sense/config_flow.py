@@ -260,12 +260,11 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self.options.update(user_input)
+            # Access point devices are always on (rooms are their Areas).
+            self.options[CONF_TRACK_DEVICES] = True
             if self.options[CONF_TRACK_CLIENTS]:
                 return await self.async_step_client_options()
-            elif self.options[CONF_TRACK_DEVICES]:
-                return await self.async_step_device_options()
-            else:
-                return await self._update_options()
+            return await self.async_step_device_options()
 
         return self.async_show_form(
             step_id="device_tracker",
@@ -290,9 +289,6 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_TRACK_CLIENTS, default=self.controller.option_track_clients
                     ): bool,
-                    vol.Optional(
-                        CONF_TRACK_DEVICES, default=self.controller.option_track_devices
-                    ): bool,
                 }
             ),
             last_step=False,
@@ -301,10 +297,7 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_client_options(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self.options.update(user_input)
-            if self.options[CONF_TRACK_DEVICES]:
-                return await self.async_step_device_options()
-            else:
-                return await self._update_options()
+            return await self.async_step_device_options()
 
         ssid_filter = {ssid: ssid for ssid in sorted(self.controller.api.ssids)}
 

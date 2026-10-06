@@ -100,6 +100,7 @@ class FakeApi:
         self.known_clients = KnownClients(self._request)
         # failure injection / call accounting
         self.raise_on_status: list[Exception] = []
+        self.raise_on_login: list[Exception] = []
         self.login_calls = 0
         self.status_calls = 0
 
@@ -120,6 +121,8 @@ class FakeApi:
 
     async def login(self):
         self.login_calls += 1
+        if self.raise_on_login:
+            raise self.raise_on_login.pop(0)
 
 
 def default_api() -> FakeApi:

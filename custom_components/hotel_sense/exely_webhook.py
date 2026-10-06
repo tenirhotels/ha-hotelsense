@@ -12,6 +12,7 @@ import secrets
 from collections import deque
 from http import HTTPStatus
 from json import JSONDecodeError
+from urllib.parse import urlsplit
 
 from aiohttp import web
 
@@ -72,11 +73,22 @@ class ExelyReceiver:
         return f"{DOMAIN}-exely-{self.entry.entry_id}"
 
     def url(self) -> str:
+        """Public https:// address for Exely (it accepts only HTTPS).
+
+        An ``http://`` external URL usually sits behind an HTTPS proxy or tunnel
+        (e.g. Cloudflare) that serves the same host on port 443, so the address
+        is shown as ``https://<host>`` rather than as the unusable http one.
+        """
+        path = webhook.async_generate_path(self.webhook_id)
         try:
-            return webhook.async_generate_url(self.hass, self.webhook_id,
-                                              allow_internal=False, prefer_external=True)
+            url = webhook.async_generate_url(self.hass, self.webhook_id,
+                                             allow_internal=False, prefer_external=True)
         except NoURLAvailableError:
-            return f"https://<your HA address>{webhook.async_generate_path(self.webhook_id)}"
+            return f"https://<your HA address>{path}"
+        parsed = urlsplit(url)
+        if parsed.scheme == "https":
+            return url
+        return f"https://{parsed.hostname}{path}"
 
     @callback
     def async_start(self) -> None:
