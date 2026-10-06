@@ -79,6 +79,10 @@ clearly a check-in or a check-out and the room is found; the result is in
 via the integration's *Download diagnostics* — they contain guest data, mask it
 before sharing. The manual status select stays as a fallback.
 
+If the key or the address leaks, tick *Generate a new API key* and/or *Generate
+a new webhook address* in the same settings page: the old one stops working at
+once and the form shows the new value to enter in Exely.
+
 ### Entities per room (`room_01` = HA area ID)
 
 | Entity | Meaning |

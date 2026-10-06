@@ -57,6 +57,7 @@ class ExelyReceiver:
         self.manager = manager
         self.recent: deque[dict] = deque(maxlen=RECENT_EVENTS)
         self.last: dict | None = None
+        self._registered_id: str | None = None
 
     @property
     def webhook_id(self) -> str:
@@ -79,9 +80,37 @@ class ExelyReceiver:
 
     @callback
     def async_start(self) -> None:
+        self._register()
+        self.entry.async_on_unload(self._unregister)
+
+    @callback
+    def _register(self) -> None:
         webhook.async_register(self.hass, DOMAIN, "Hotel Sense: Exely PMS", self.webhook_id,
                                self._handle, local_only=False, allowed_methods=["POST"])
-        self.entry.async_on_unload(lambda: webhook.async_unregister(self.hass, self.webhook_id))
+        self._registered_id = self.webhook_id
+
+    @callback
+    def _unregister(self) -> None:
+        if self._registered_id:
+            webhook.async_unregister(self.hass, self._registered_id)
+            self._registered_id = None
+
+    @callback
+    def async_rotate(self, *, api_key: bool = False, url: bool = False) -> None:
+        """Replace a compromised key and/or webhook address. Old ones stop working at once."""
+        data = dict(self.entry.data)
+        if api_key:
+            data[CONF_EXELY_API_KEY] = secrets.token_urlsafe(24)
+        if url:
+            data[CONF_EXELY_WEBHOOK_ID] = secrets.token_hex(16)
+        if data == dict(self.entry.data):
+            return
+        self.hass.config_entries.async_update_entry(self.entry, data=data)
+        if url and self._registered_id:
+            self._unregister()
+            self._register()
+        LOGGER.warning("Exely webhook secrets regenerated (key: %s, address: %s); "
+                       "update them in Exely", api_key, url)
 
     # ------------------------------------------------------------------ #
     async def _handle(self, hass: HomeAssistant, webhook_id: str,
