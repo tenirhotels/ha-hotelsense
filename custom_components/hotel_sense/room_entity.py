@@ -219,6 +219,34 @@ class MisplacedFixedDevicesSensor(SensorEntity):
                 "data_stale": self.manager.data_stale}
 
 
+class ExelyLastEventSensor(SensorEntity):
+    """Result of the last Exely webhook: applied / partial / unmatched / invalid."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "exely_last_event"
+    _attr_icon = "mdi:webhook"
+
+    def __init__(self, receiver, device_info: DeviceInfo) -> None:
+        self.receiver = receiver
+        self.entity_id = "sensor.hotel_sense_exely_last_event"
+        self._attr_unique_id = f"exely_last_event-{receiver.manager.controller.api.controller_id}"
+        self._attr_device_info = device_info
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, self.receiver.signal, self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> str | None:
+        return self.receiver.last["result"] if self.receiver.last else None
+
+    @property
+    def extra_state_attributes(self):
+        # Extracted fields only; raw payloads (guest data) are not stored in states.
+        return dict(self.receiver.last or {})
+
+
 # --------------------------------------------------------------------------- #
 # select: room status, Exely check-in / check-out (manual until the webhook)
 # --------------------------------------------------------------------------- #

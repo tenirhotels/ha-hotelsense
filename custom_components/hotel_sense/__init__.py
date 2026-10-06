@@ -7,6 +7,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, PLATFORMS
 from .controller import OmadaController
+from .exely_webhook import ExelyReceiver, async_ensure_secrets
 from .presence_manager import PresenceManager
 from .services import async_register_services
 from .storage import async_get_device_store
@@ -34,11 +35,14 @@ async def async_setup(hass, config) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Before the controller registers its update listener (it reacts to entry updates).
+    async_ensure_secrets(hass, entry)
     omada_controller = OmadaController(hass, entry)
     await omada_controller.async_setup()
 
     omada_controller.presence = PresenceManager(
         hass, entry, omada_controller, await async_get_device_store(hass))
+    omada_controller.exely = ExelyReceiver(hass, entry, omada_controller.presence)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = omada_controller
     omada_controller.async_remove_hidden_devices()
@@ -47,6 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # AP devices exist in the registry now, so AP -> Area can be resolved.
     omada_controller.presence.async_start()
+    omada_controller.exely.async_start()
 
     return True
 

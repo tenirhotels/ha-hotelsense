@@ -55,6 +55,28 @@ and entities.
    `room_01`…`room_10` / `admin_house`, regenerate it:
    `python scripts/generate_dashboard.py --rooms <area ids> --common <area ids>`.
 
+### Exely PMS: check-in / check-out webhook
+
+Hotel Sense receives Exely webhooks at `https://<your HA>/api/webhook/<id>` and
+sets the room status from check-in / check-out events.
+
+1. Hotel Sense → Configure → *Exely PMS (check-in / check-out)* shows the full
+   URL and the API key (both generated once, random).
+2. In Exely: Настройка гостиницы → Подключение API → your connection → Вебхуки:
+   «Использование вебхуков» = Да, URL from step 1, authentication «API-ключ»
+   with the key from step 1, events: only check-in and check-out. Save.
+3. Rooms are matched by number (Exely `1`, `01` or `101` → Area `Room 01`) only
+   when that is unambiguous; otherwise add lines like `101 = Room 01` to the room
+   mapping in the same settings page.
+
+Requests without the right `API-KEY` header are rejected (401). Everything else
+is answered with 200 so Exely does not retry. An event is applied only if it is
+clearly a check-in or a check-out and the room is found; the result is in
+`sensor.hotel_sense_exely_last_event` (`applied` / `partial` / `unmatched` /
+`invalid`). The last 20 raw payloads are kept in memory and can be downloaded
+via the integration's *Download diagnostics* — they contain guest data, mask it
+before sharing. The manual status select stays as a fallback.
+
 ### Entities per room (`room_01` = HA area ID)
 
 | Entity | Meaning |

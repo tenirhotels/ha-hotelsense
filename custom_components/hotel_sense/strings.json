@@ -71,7 +71,8 @@
         "menu_options": {
           "device_tracker": "Omada polling and entities",
           "presence": "Room presence",
-          "device_list": "Fixed and employee devices"
+          "device_list": "Fixed and employee devices",
+          "exely": "Exely PMS (check-in / check-out)"
         }
       },
       "presence": {
@@ -151,6 +152,16 @@
         "data": {
           "csv": "CSV"
         }
+      },
+      "exely": {
+        "title": "Exely PMS webhook",
+        "description": "In Exely: Hotel settings → API connection → your connection → Webhooks: Use webhooks = Yes.\nURL: {url}\nAuthentication: API key; key: {api_key}\nEvents: check-in and check-out only.\n\nRooms are matched by number (Exely 1 or 101 → Area Room 01) only when unambiguous. Otherwise map them below.",
+        "data": {
+          "exely_room_map": "Room mapping (one per line: Exely room = HA Area)"
+        },
+        "data_description": {
+          "exely_room_map": "Example: 101 = Room 01"
+        }
       }
     },
     "error": {
@@ -203,6 +214,15 @@
       },
       "misplaced_devices": {
         "name": "Misplaced fixed devices"
+      },
+      "exely_last_event": {
+        "name": "Exely last event",
+        "state": {
+          "applied": "Applied",
+          "partial": "Partially applied",
+          "unmatched": "Not recognised",
+          "invalid": "Invalid"
+        }
       }
     },
     "select": {
