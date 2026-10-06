@@ -8,7 +8,9 @@
           "username": "Username",
           "password": "Password",
           "verify_ssl": "Verify SSL"
-        }
+        },
+        "title": "Hotel Sense - Powered by Omada",
+        "description": "Set required parameters to connect to your Omada Controller."
       },
       "reconfigure": {
         "data": {
@@ -17,7 +19,9 @@
           "username": "Username",
           "password": "Password",
           "verify_ssl": "Verify SSL"
-        }
+        },
+        "title": "Hotel Sense - Powered by Omada",
+        "description": "Set required parameters to connect to your Omada Controller."
       }
     },
     "error": {
@@ -225,7 +229,7 @@
         },
         "mapping": {
           "name": "Expected mapping",
-          "description": "MAC → room, e.g. {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+          "description": "MAC → room (MAC as key, room name as value)."
         },
         "csv": {
           "name": "Expected CSV",
@@ -243,7 +247,7 @@
         },
         "mapping": {
           "name": "Mapping",
-          "description": "MAC → room, e.g. {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+          "description": "MAC → room (MAC as key, room name as value)."
         },
         "csv": {
           "name": "CSV",

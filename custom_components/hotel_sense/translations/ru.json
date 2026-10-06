@@ -229,7 +229,7 @@
         },
         "mapping": {
           "name": "Ожидаемая таблица",
-          "description": "MAC → помещение, например {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+          "description": "MAC → помещение (ключ — MAC, значение — название помещения)."
         },
         "csv": {
           "name": "Ожидаемый CSV",
@@ -247,7 +247,7 @@
         },
         "mapping": {
           "name": "Таблица",
-          "description": "MAC → помещение, например {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+          "description": "MAC → помещение (ключ — MAC, значение — название помещения)."
         },
         "csv": {
           "name": "CSV",

@@ -224,7 +224,7 @@
         },
         "mapping": {
           "name": "Expected mapping",
-          "description": "MAC → room, e.g. {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+          "description": "MAC → room (MAC as key, room name as value)."
         },
         "csv": {
           "name": "Expected CSV",
@@ -242,7 +242,7 @@
         },
         "mapping": {
           "name": "Mapping",
-          "description": "MAC → room, e.g. {\"AA-BB-CC-DD-EE-FF\": \"Room 01\"}."
+          "description": "MAC → room (MAC as key, room name as value)."
         },
         "csv": {
           "name": "CSV",
