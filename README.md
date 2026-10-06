@@ -18,9 +18,16 @@ devices/entities can be enabled for diagnostics in Configure → Omada polling
 and entities.
 
 1. **Areas.** Room = Home Assistant Area (`Room 01` … `Room 10`, `Admin House`).
-2. **AP → Area.** Each access point device gets the Area of its room, either
-   in the UI or with the `hotel_sense.assign_ap_areas` service. APs are matched
-   by **MAC**, never by their name in Omada:
+2. **AP → Area.** When the integration is added, Home Assistant shows the
+   *Name and assign* dialog: pick the Area for each access point there
+   (e.g. `WF00` → Admin House, `WF01` → Room 01 … `WF10` → Room 10).
+   Later changes: Settings → Devices → the AP → Area.
+
+   Optional, for checking or bulk changes: `hotel_sense.ap_area_report`
+   (Developer tools → Actions, "return response") lists APs **without an Area**;
+   with a MAC → room table it also flags **mismatches** and table MACs that are
+   **not found**. `hotel_sense.assign_ap_areas` sets Areas from such a table
+   (APs are matched by **MAC**, not by their name in Omada):
 
    ```yaml
    action: hotel_sense.assign_ap_areas
@@ -30,10 +37,6 @@ and entities.
        AA-BB-CC-DD-EE-01,Room 01
        aa:bb:cc:dd:ee:00,Admin House
    ```
-
-   Check the result with `hotel_sense.ap_area_report` (Developer tools → Actions,
-   "return response"). Pass the same table to see APs **without an Area**,
-   **mismatching** the table, or table MACs that are **not found**.
 3. **Fixed and employee devices.** Settings → Devices & services → Hotel Sense →
    Configure → *Fixed and employee devices*: add / edit / delete, import and
    export CSV (`mac,name,category,owner,note`, category `fixed` or `employee`).
