@@ -58,8 +58,8 @@
       "device_options": {
         "data": {
           "enable_device_bandwidth_sensors": "Enable bandwidth sensors",
-          "enable_device_statistics_sensors": "Enable CPU, Memory, and Uptime sensors",
-          "enable_device_clients_sensors": "Enable client count sensors",
+          "enable_device_statistics_sensors": "Enable CPU and memory sensors (uptime is always on)",
+          "enable_device_clients_sensors": "Enable per-band, guest and user client counts (total is always on)",
           "enable_device_radio_utilization_sensors": "Enable radio utilization sensors",
           "enable_device_controls": "Enable device controls"
         },

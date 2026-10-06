@@ -28,29 +28,13 @@ from .omada_controller_entity import (
     unique_id_fn as controller_unique_id_fn
 )
 
-AI_OPTIMIZATION_BUTTON = "ai_optimization"
-RECONNECT_ALL_CLIENTS_BUTTON = "reconnect_all_clients"
 REBOOT_BUTTON = "reboot"
-RECONNECT_BUTTON = "reconnect"
 
 LOGGER = logging.getLogger(__name__)
 
 @callback
-async def start_rf_planning_fn(api: Controller) -> None:
-    await api.start_rf_planning()
-
-@callback
-async def reconnect_all_clients_fn(api: Controller) -> None:
-    for client in api.clients.items.values():
-        await api.clients.async_reconnect(client.mac)
-
-@callback
 async def reboot_device_fn(api: Controller, mac: str) -> None:
     await api.devices.trigger_reboot(mac)
-
-@callback
-async def reconnect_client_fn(api: Controller, mac: str) -> None:
-    await api.clients.async_reconnect(mac)
 
 
 @dataclass
@@ -96,34 +80,11 @@ class OmadaControllerButtonEntityDescription(
     pass
 
 
+# Hotel Sense: no controller buttons. "Start WLAN Optimization" and "Reconnect
+# All Clients" were removed (not needed; reconnect also fails on controller v6).
 CONTROLLER_ENTITY_DESCRIPTIONS: dict[
     str, OmadaControllerButtonEntityDescription
-] = {
-    AI_OPTIMIZATION_BUTTON: OmadaControllerButtonEntityDescription(
-        domain=DOMAIN,
-        key=AI_OPTIMIZATION_BUTTON,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        has_entity_name=True,
-        icon="mdi:chart-box",
-        available_fn=lambda controller: controller.available,
-        device_info_fn=controller_device_info_fn,
-        name_fn=lambda *_: "Start WLAN Optimization",
-        unique_id_fn=controller_unique_id_fn,
-        activate_fn=start_rf_planning_fn
-    ),
-    RECONNECT_ALL_CLIENTS_BUTTON: OmadaControllerButtonEntityDescription(
-        domain=DOMAIN,
-        key=RECONNECT_ALL_CLIENTS_BUTTON,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        has_entity_name=True,
-        icon="mdi:chart-box",
-        available_fn=lambda controller: controller.available,
-        device_info_fn=controller_device_info_fn,
-        name_fn=lambda *_: "Reconnect All Clients",
-        unique_id_fn=controller_unique_id_fn,
-        activate_fn=reconnect_all_clients_fn
-    )
-}
+] = {}
 
 DEVICE_ENTITY_DESCRIPTIONS: dict[
     str, OmadaDeviceButtonEntityDescription
@@ -145,22 +106,9 @@ DEVICE_ENTITY_DESCRIPTIONS: dict[
     )
 }
 
-CLIENT_ENTITY_DESCRIPTIONS: dict[str, OmadaButtonEntityDescription] = {
-    RECONNECT_BUTTON: OmadaButtonEntityDescription(
-        domain=DOMAIN,
-        key=RECONNECT_BUTTON,
-        entity_category=EntityCategory.CONFIG,
-        has_entity_name=True,
-        icon="mdi:network",
-        allowed_fn=lambda controller, mac: controller.is_client_allowed(mac),
-        supported_fn=lambda controller, mac: controller.api.known_clients[mac].wireless,
-        available_fn=lambda controller, mac: controller.available,
-        device_info_fn=client_device_info_fn,
-        name_fn=lambda *_: "Reconnect",
-        namespace=NS_CLIENT,
-        activate_fn=reconnect_client_fn
-    )
-}
+# Hotel Sense: no per-client "Reconnect" button (it drops a guest's Wi-Fi and the
+# command path does not exist on Omada controller v6).
+CLIENT_ENTITY_DESCRIPTIONS: dict[str, OmadaButtonEntityDescription] = {}
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     controller: OmadaController = hass.data[OMADA_DOMAIN][config_entry.entry_id]

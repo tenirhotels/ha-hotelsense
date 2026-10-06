@@ -79,3 +79,43 @@ async def test_client_entities_can_still_be_enabled(hass, make_entry, patch_api)
     await _setup(hass, entry)
     assert make_unique_id("client", SITE_ID, GUEST_PHONE) in _identifiers(hass, entry)
     assert hass.states.get("device_tracker.guest_phone") is not None
+
+
+async def test_wlan_optimization_and_reconnect_are_gone(hass, make_entry, patch_api):
+    """Removed on owner request: not needed, and reconnect fails on controller v6."""
+    entry = make_entry({CONF_TRACK_CLIENTS: True})
+    entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    # Left over from an older version.
+    old = [reg.async_get_or_create("button", DOMAIN, "ai_optimization-ctrl-1", config_entry=entry),
+           reg.async_get_or_create("binary_sensor", DOMAIN, "ai_optimization-ctrl-1", config_entry=entry),
+           reg.async_get_or_create("button", DOMAIN, "reconnect_all_clients-ctrl-1", config_entry=entry),
+           reg.async_get_or_create("button", DOMAIN, make_unique_id("client", SITE_ID, GUEST_PHONE, "reconnect"),
+                                   config_entry=entry)]
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    for e in old:
+        assert reg.async_get(e.entity_id) is None, e.entity_id
+    entities = er.async_entries_for_config_entry(reg, entry.entry_id)
+    assert not [e for e in entities if "optimization" in e.unique_id or "reconnect" in e.unique_id]
+    assert not [s.entity_id for s in hass.states.async_all() if "optimization" in s.entity_id
+                or "reconnect" in s.entity_id]
+
+
+async def test_access_points_always_get_uptime_and_client_count(hass, make_entry, patch_api):
+    """Owner choice: uptime + total clients per AP by default; CPU, memory and the
+    per-band / guest / user counts stay behind their options (off by default)."""
+    _add_switch(patch_api)
+    entry = make_entry({CONF_TRACK_CLIENTS: False, "enable_device_statistics_sensors": False,
+                        "enable_device_clients_sensors": False})
+    await _setup(hass, entry)
+    reg = er.async_get(hass)
+    for ap in (AP_WF06, AP_WF07):
+        for key in ("uptime", "clients"):
+            assert reg.async_get_entity_id("sensor", DOMAIN, make_unique_id("ap", SITE_ID, ap, key)), (ap, key)
+        for key in ("cpu_usage", "memory_usage", "guests", "users", "2ghz_clients", "5ghz_clients"):
+            assert not reg.async_get_entity_id("sensor", DOMAIN, make_unique_id("ap", SITE_ID, ap, key)), (ap, key)
+    assert hass.states.get("sensor.wf06_clients").state == "2"
+    # Not for switches.
+    assert not reg.async_get_entity_id("sensor", DOMAIN, make_unique_id("ap", SITE_ID, SWITCH, "uptime"))

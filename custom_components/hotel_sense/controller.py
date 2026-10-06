@@ -254,6 +254,19 @@ class OmadaController:
                     break
 
     @callback
+    def async_remove_retired_entities(self) -> None:
+        """Drop entities Hotel Sense no longer provides (WLAN optimization, reconnect)."""
+        ent_reg = entity_registry.async_get(self.hass)
+        cid = self.api.controller_id
+        retired_ids = {f"ai_optimization-{cid}", f"reconnect_all_clients-{cid}"}
+        for entry in async_entries_for_config_entry(ent_reg, self._config_entry.entry_id):
+            parsed = parse_unique_id(entry.unique_id)
+            if entry.unique_id in retired_ids or (
+                    entry.domain == "button" and parsed is not None
+                    and parsed.namespace == NS_CLIENT and parsed.key == "reconnect"):
+                ent_reg.async_remove(entry.entity_id)
+
+    @callback
     def register_platform_entities(
         self,
         macs: set[str],
