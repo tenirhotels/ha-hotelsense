@@ -5,6 +5,7 @@
 - Presence engine: Wi-Fi only, disconnect timeout (5 min), roaming debounce (30 s), optional minimum RSSI, outage keeps the last picture
 - Per-room entities: guest/employee presence, device counts, manual status select (Свободен/Продан/Уборка), room state and violation; `hotel_sense_room_state_changed` event
 - Lovelace rooms dashboard (built-in cards, red violations) and its generator
+- Only the controller and access points become HA devices: connected clients (phones, TVs, ACs ...) no longer get devices/entities by default (option "create devices for connected clients", off), switches/gateways never; such devices left over from 0.1.0 are removed on load. Clients are always polled for presence
 - Russian translation
 - Restored CI workflows lost in the web upload; hassfest runs on every push
 

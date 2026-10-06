@@ -41,6 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass, entry, omada_controller, await async_get_device_store(hass))
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = omada_controller
+    omada_controller.async_remove_hidden_devices()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

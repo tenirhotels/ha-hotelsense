@@ -43,8 +43,8 @@
         "data": {
           "scan_interval": "Scan interval",
           "scan_interval_details": "Scan interval details",
-          "track_clients": "Enable client tracking",
-          "track_devices": "Enable device tracking"
+          "track_clients": "Create devices and entities for connected clients (diagnostics; presence works without it)",
+          "track_devices": "Create devices and entities for access points"
         },
         "description": "Configure options",
         "title": "Hotel Sense Options"

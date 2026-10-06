@@ -27,10 +27,14 @@ from .const import (CONF_SITE, CONF_SSID_FILTER, CONF_DISCONNECT_TIMEOUT,
                     CONF_ENABLE_DEVICE_BANDWIDTH_SENSORS, CONF_ENABLE_DEVICE_RADIO_UTILIZATION_SENSORS,
                     CONF_ENABLE_DEVICE_CONTROLS, CONF_ENABLE_DEVICE_STATISTICS_SENSORS,
                     CONF_ENABLE_DEVICE_CLIENTS_SENSORS, PLATFORMS, DOMAIN as OMADA_DOMAIN)
-from .ids import NS_CLIENT, parse_unique_id
+from .ids import NS_AP, NS_CLIENT, NS_UPDATE, parse_unique_id
 from .omada_entity import OmadaEntity, OmadaEntityDescription
 
 LOGGER = logging.getLogger(__name__)
+
+# Hotel Sense: of all Omada devices only access points are locations; switches
+# and gateways get no entities/devices in Home Assistant.
+ACCESS_POINT_TYPE = "ap"
 
 
 class OmadaController:
@@ -43,7 +47,7 @@ class OmadaController:
         self._last_full_update: datetime = None
         self.option_scan_interval = 30
         self.option_scan_interval_details = 120
-        self.option_track_clients = True
+        self.option_track_clients = False
         self.option_track_devices = True
         self.option_ssid_filter = None
         self.option_disconnect_timeout = 0
@@ -67,7 +71,9 @@ class OmadaController:
         self.option_disconnect_timeout = options.get(CONF_DISCONNECT_TIMEOUT, 0)
         self.option_scan_interval = options.get(CONF_SCAN_INTERVAL, 30)
         self.option_scan_interval_details = options.get(CONF_SCAN_INTERVAL_DETAILS, 120)
-        self.option_track_clients = options.get(CONF_TRACK_CLIENTS, True)
+        # Per-client entities/devices (phones, TVs ...) are off by default: presence
+        # reads the client list directly and needs no HA device per client.
+        self.option_track_clients = options.get(CONF_TRACK_CLIENTS, False)
         self.option_track_devices = options.get(CONF_TRACK_DEVICES, True)
         self.option_client_bandwidth_sensors = options.get(CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS, False)
         self.option_client_uptime_sensor = options.get(CONF_ENABLE_CLIENT_UPTIME_SENSORS, False)
@@ -166,9 +172,10 @@ class OmadaController:
                 if self.option_track_devices:
                     await self.api.devices.update(update_details=update_all)
 
-                if self.option_track_clients:
-                    await self.api.clients.update()
-                    await self.api.known_clients.update()
+                # Always polled: the presence engine needs the client list even
+                # when no per-client entities are created.
+                await self.api.clients.update()
+                await self.api.known_clients.update()
 
                 available = True
 
@@ -222,6 +229,29 @@ class OmadaController:
         LOGGER.debug(f"is_client_allowed: {client_mac} {allowed}")
         return allowed
 
+    def is_access_point(self, mac: str) -> bool:
+        return mac in self.api.devices and self.api.devices[mac].type == ACCESS_POINT_TYPE
+
+    @callback
+    def async_remove_hidden_devices(self) -> None:
+        """Drop HA devices this integration no longer exposes: switches/gateways,
+        and connected clients unless client entities are enabled."""
+        dev_reg = device_registry.async_get(self.hass)
+        for device in device_registry.async_entries_for_config_entry(
+                dev_reg, self._config_entry.entry_id):
+            for domain, identifier in device.identifiers:
+                if domain != OMADA_DOMAIN or (parsed := parse_unique_id(identifier)) is None:
+                    continue
+                hidden = (
+                    (parsed.namespace == NS_CLIENT and not self.option_track_clients)
+                    or (parsed.namespace in (NS_AP, NS_UPDATE)
+                        and parsed.mac in self.api.devices
+                        and not self.is_access_point(parsed.mac))
+                )
+                if hidden:
+                    dev_reg.async_remove_device(device.id)  # also removes its entities
+                    break
+
     @callback
     def register_platform_entities(
         self,
@@ -241,6 +271,8 @@ class OmadaController:
                 self.entities[description.domain][description.bucket] = set()
 
             for mac in macs:
+                if description.namespace in (NS_AP, NS_UPDATE) and not self.is_access_point(mac):
+                    continue
                 if (mac not in self.entities[description.domain][description.bucket] and
                         description.allowed_fn(self, mac) and description.supported_fn(self, mac)):
 

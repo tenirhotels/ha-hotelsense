@@ -11,6 +11,12 @@
 
 ### Setup (once)
 
+Hotel Sense adds only the **controller** and the **access points** as devices.
+Connected clients (phones, TVs, air conditioners …) are read directly for
+presence and get no devices; switches and gateways are skipped. Per-client
+devices/entities can be enabled for diagnostics in Configure → Omada polling
+and entities.
+
 1. **Areas.** Room = Home Assistant Area (`Room 01` … `Room 10`, `Admin House`).
 2. **AP → Area.** Each access point device gets the Area of its room, either
    in the UI or with the `hotel_sense.assign_ap_areas` service. APs are matched
