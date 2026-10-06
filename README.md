@@ -102,6 +102,11 @@ once and the form shows the new value to enter in Exely.
 
 Common areas (Admin House) get only presence and counts.
 
+**Connection.** Each device in the `devices` attribute also shows where it is
+connected: `ap` (access point name), `ssid`, `rssi` (dBm), `last_seen` and
+`connected` (false while a device that left is kept in the room for the
+disconnect timeout; the values are then the last known ones).
+
 **Device type.** Each device in the `devices` attribute has a `type` (phone,
 tablet, computer, watch, tv, appliance, printer, pos, personal, other, unknown)
 and its `type_source`, taken from the first source that knows it: the

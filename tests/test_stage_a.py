@@ -474,3 +474,25 @@ async def test_misplaced_fixed_devices_double_check(hass, make_entry, patch_api)
     await _import(hass, f"mac,name,category,room\n{GUEST_PHONE},Maid,employee,Room 07\n"
                         f"{SHARED_MAC},HF06,fixed,\n")
     assert _state(hass, sensor) == "0"
+
+
+async def test_devices_show_access_point_ssid_and_signal(hass, make_entry, patch_api, freezer):
+    controller = await _hotel(hass, make_entry())
+    on_wf07 = client_raw(GUEST_PHONE, "Guest-Phone", ap_mac=AP_WF07, ssid="TENIR7") | {"rssi": -48}
+    _set_clients(patch_api, [on_wf07, client_raw(SHARED_MAC, "wf07-as-client")])
+    await _poll(hass, controller)            # roaming to WF07 starts
+    freezer.tick(timedelta(seconds=31))      # past the 30 s roaming debounce
+    await _poll(hass, controller)
+    devices = {d["mac"]: d for d in hass.states.get("sensor.room_07_guest_devices").attributes["devices"]}
+    phone = devices[GUEST_PHONE]
+    assert (phone["ap"], phone["ssid"], phone["rssi"], phone["connected"]) == ("WF07", "TENIR7", -48, True)
+    assert phone["last_seen"].endswith("+00:00")
+
+    # Gone from Wi-Fi: kept in the room for the timeout, shown as not connected
+    # with the last known access point / SSID.
+    _set_clients(patch_api, [client_raw(SHARED_MAC, "wf07-as-client")])
+    freezer.tick(timedelta(minutes=1))
+    await _poll(hass, controller)
+    phone = {d["mac"]: d for d in
+             hass.states.get("sensor.room_07_guest_devices").attributes["devices"]}[GUEST_PHONE]
+    assert (phone["connected"], phone["ap"], phone["ssid"]) == (False, "WF07", "TENIR7")

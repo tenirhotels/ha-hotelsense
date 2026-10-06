@@ -1,4 +1,5 @@
 # Hotel Sense (unreleased)
+- Room device lists show access point, SSID, signal, last seen and whether the device is still connected
 - Device type per device (list → Omada → hostname → private MAC → unknown), `types` counts, shown on the dashboard; `device_type` column in the device list
 - Settings texts fully follow the interface language (the "new key generated" notice no longer depends on the server language); English dashboard `dashboards/hotel_sense_rooms_en.yaml`
 - Exely webhook: regenerate a compromised API key and/or webhook address from the settings

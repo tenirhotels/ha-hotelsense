@@ -113,7 +113,7 @@ class PresenceManager:
                 continue  # owner decision: Wi-Fi clients only
             try:
                 ap_mac = parse_mac(client.ap_mac) if client.ap_mac else None
-                result.append(Observation(parse_mac(mac), ap_mac, client.rssi))
+                result.append(Observation(parse_mac(mac), ap_mac, client.rssi, client.ssid))
             except ValueError:
                 continue
         return result
@@ -213,6 +213,25 @@ class PresenceManager:
             if item is not None:
                 return getattr(item, "_raw", None)
         return None
+
+    def connection_info(self, mac: str) -> dict:
+        """Access point, SSID and signal of the last observation of ``mac``.
+
+        ``connected`` is False while a device that left is kept in its room for
+        the disconnect timeout; the values are then those last seen.
+        """
+        track = self.engine.tracks.get(mac)
+        if track is None:
+            return {}
+        devices = self.controller.api.devices.items
+        ap = next((d for m, d in devices.items() if track.ap_mac and m.upper() == track.ap_mac), None)
+        return {
+            "connected": mac in self.controller.api.clients.items,
+            "ap": ap.name if ap else track.ap_mac,
+            "ssid": track.ssid,
+            "rssi": track.rssi,
+            "last_seen": dt_util.utc_from_timestamp(track.last_seen).isoformat(),
+        }
 
     def device_kind(self, mac: str) -> tuple[str, str]:
         """(kind, source): owner's list, then Omada, then hostname, then private MAC."""
