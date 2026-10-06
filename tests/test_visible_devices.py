@@ -79,3 +79,25 @@ async def test_client_entities_can_still_be_enabled(hass, make_entry, patch_api)
     await _setup(hass, entry)
     assert make_unique_id("client", SITE_ID, GUEST_PHONE) in _identifiers(hass, entry)
     assert hass.states.get("device_tracker.guest_phone") is not None
+
+
+async def test_wlan_optimization_and_reconnect_are_gone(hass, make_entry, patch_api):
+    """Removed on owner request: not needed, and reconnect fails on controller v6."""
+    entry = make_entry({CONF_TRACK_CLIENTS: True})
+    entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    # Left over from an older version.
+    old = [reg.async_get_or_create("button", DOMAIN, "ai_optimization-ctrl-1", config_entry=entry),
+           reg.async_get_or_create("binary_sensor", DOMAIN, "ai_optimization-ctrl-1", config_entry=entry),
+           reg.async_get_or_create("button", DOMAIN, "reconnect_all_clients-ctrl-1", config_entry=entry),
+           reg.async_get_or_create("button", DOMAIN, make_unique_id("client", SITE_ID, GUEST_PHONE, "reconnect"),
+                                   config_entry=entry)]
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    for e in old:
+        assert reg.async_get(e.entity_id) is None, e.entity_id
+    entities = er.async_entries_for_config_entry(reg, entry.entry_id)
+    assert not [e for e in entities if "optimization" in e.unique_id or "reconnect" in e.unique_id]
+    assert not [s.entity_id for s in hass.states.async_all() if "optimization" in s.entity_id
+                or "reconnect" in s.entity_id]

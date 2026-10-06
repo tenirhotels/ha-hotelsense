@@ -25,20 +25,10 @@ from .ids import NS_CLIENT
 from .room_entity import async_setup_room_platform, binary_sensor_factory
 from .omada_entity import (OmadaEntity, OmadaEntityDescription, client_device_info_fn)
 
-AI_OPTIMIZATION_SENSOR = "ai_optimization"
 POWER_SAVE_SENSOR = "power_save"
 
 LOGGER = logging.getLogger(__name__)
 
-
-@callback
-def rf_planning_state_value_fn(controller: OmadaController) -> bool | None:
-    """Retrieve AI Optimization Status"""
-    rf_planning_state = controller.api.rf_planning
-    if rf_planning_state is not None:
-        return rf_planning_state.status == 2
-    else:
-        return None
 
 
 @callback
@@ -83,22 +73,10 @@ class OmadaBinarySensorEntityDescription(
     value_fn: Callable[[OmadaController], bool | None]
 
 
+# Hotel Sense: the "WLAN Optimization Running" sensor was removed (not needed).
 CONTROLLER_ENTITY_DESCRIPTIONS: dict[
     str, OmadaControllerBinarySensorEntityDescription
-] = {
-    AI_OPTIMIZATION_SENSOR: OmadaControllerBinarySensorEntityDescription(
-        domain=DOMAIN,
-        key=AI_OPTIMIZATION_SENSOR,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        has_entity_name=True,
-        icon="mdi:chart-box",
-        available_fn=lambda controller: controller.available,
-        device_info_fn=controller_device_info_fn,
-        name_fn=lambda *_: "WLAN Optimization Running",
-        unique_id_fn=controller_unique_id_fn,
-        value_fn=rf_planning_state_value_fn,
-    )
-}
+] = {}
 
 CLIENT_ENTITY_DESCRIPTIONS: Dict[str, OmadaBinarySensorEntityDescription] = {
     POWER_SAVE_SENSOR: OmadaBinarySensorEntityDescription(

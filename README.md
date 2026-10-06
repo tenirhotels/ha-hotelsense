@@ -190,9 +190,7 @@ This integration is designed to be installed via [HACS](https://hacs.xyz/).
 
 * **Sensors:**
   * Total number of connected clients across the site.
-  * WLAN Optimization (AI RF Planning) running status.
 * **Controls:**
-  * Start WLAN Optimization (AI RF Planning).
 
 ### Configurability
 
