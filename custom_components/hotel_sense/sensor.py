@@ -586,8 +586,8 @@ DEVICE_ENTITY_DESCRIPTIONS: Dict[str, OmadaSensorEntityDescription] = {
         entity_category=EntityCategory.DIAGNOSTIC,
         device_class=SensorDeviceClass.TIMESTAMP,
         has_entity_name=True,
-        allowed_fn=lambda controller, _: (controller.option_device_statistics_sensors and
-                                          controller.option_track_devices),
+        # Hotel Sense: always on for access points (shows a frozen / rebooted AP).
+        allowed_fn=lambda controller, _: controller.option_track_devices,
         supported_fn=lambda *_: True,
         available_fn=lambda controller, _: controller.available,
         device_info_fn=device_device_info_fn,
@@ -608,8 +608,8 @@ DEVICE_ENTITY_DESCRIPTIONS: Dict[str, OmadaSensorEntityDescription] = {
         native_unit_of_measurement=CLIENTS,
         has_entity_name=True,
         icon="mdi:devices",
-        allowed_fn=lambda controller, _: (controller.option_device_clients_sensors and
-                                          controller.option_track_devices),
+        # Hotel Sense: always on for access points.
+        allowed_fn=lambda controller, _: controller.option_track_devices,
         supported_fn=lambda *_: True,
         available_fn=lambda controller, _: controller.available,
         device_info_fn=device_device_info_fn,

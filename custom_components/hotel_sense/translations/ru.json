@@ -65,8 +65,8 @@
         "description": "Отслеживание устройств Omada",
         "data": {
           "enable_device_bandwidth_sensors": "Сенсоры трафика",
-          "enable_device_statistics_sensors": "Сенсоры CPU, памяти и аптайма",
-          "enable_device_clients_sensors": "Сенсоры числа клиентов",
+          "enable_device_statistics_sensors": "Сенсоры CPU и памяти (аптайм включён всегда)",
+          "enable_device_clients_sensors": "Число клиентов по диапазонам, гостей и пользователей (общее число включено всегда)",
           "enable_device_radio_utilization_sensors": "Сенсоры загрузки радио",
           "enable_device_controls": "Управление устройствами"
         }
