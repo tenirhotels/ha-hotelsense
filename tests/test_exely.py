@@ -186,6 +186,24 @@ async def test_ambiguous_room_number_is_not_guessed(hass, make_entry, patch_api,
     assert _state(hass, "select.room_06_status") == "checked_out"
 
 
+async def test_options_step_shows_https_even_if_external_url_is_http(hass, make_entry, patch_api):
+    """Exely accepts only https: an http external URL (HA behind a tunnel /
+    proxy) is shown as https on the default port."""
+    await hass.config.async_update(external_url="http://hass.example.org:8123")
+    entry = await _exely_hotel(hass, make_entry)
+    result = await _options_menu(hass, entry, "exely")
+    assert result["description_placeholders"]["url"] == (
+        f"https://hass.example.org/api/webhook/{entry.data[CONF_EXELY_WEBHOOK_ID]}")
+
+
+async def test_options_step_keeps_an_https_port(hass, make_entry, patch_api):
+    await hass.config.async_update(external_url="https://hass.example.org:8443")
+    entry = await _exely_hotel(hass, make_entry)
+    result = await _options_menu(hass, entry, "exely")
+    assert result["description_placeholders"]["url"] == (
+        f"https://hass.example.org:8443/api/webhook/{entry.data[CONF_EXELY_WEBHOOK_ID]}")
+
+
 async def test_options_step_shows_url_and_key_and_saves_mapping(hass, make_entry, patch_api):
     await hass.config.async_update(external_url="https://hass.example.org")
     entry = await _exely_hotel(hass, make_entry)
