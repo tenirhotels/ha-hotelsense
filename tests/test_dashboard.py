@@ -9,7 +9,10 @@ from pathlib import Path
 import yaml
 from homeassistant.helpers.template import Template
 
-from .fakes import AP_WF06, AP_WF07
+from custom_components.hotel_sense.const import DOMAIN
+from custom_components.hotel_sense.storage import async_get_device_store
+
+from .fakes import AP_WF06, AP_WF07, GUEST_PHONE
 from .test_stage_a import _hotel
 
 ROOT = Path(__file__).parent.parent
@@ -59,6 +62,16 @@ async def test_dashboard_renders_and_highlights_violations(hass, make_entry, pat
     assert 'alert-type="error"' in room and "Room 06 — НАРУШЕНИЕ" in room
     assert "Гости: 2" in room
     assert "Admin House" in admin and "Гости: 0" in admin
+
+    assert "не на своём месте" not in summary
+
+    await hass.services.async_call(DOMAIN, "import_devices", {
+        "csv": f"mac,name,category,room\n{GUEST_PHONE},AC07,fixed,Room 07\n"}, blocking=True)
+    await hass.async_block_till_done()
+    summary = Template(cards[0]["content"], hass).async_render(parse_result=False)
+    assert 'alert-type="warning"' in summary
+    assert "AC07: ожидается Room 07, видно в Room 06" in summary
+    await (await async_get_device_store(hass)).async_remove([GUEST_PHONE])
 
     await hass.services.async_call("select", "select_option", {
         "entity_id": "select.room_06_status", "option": "sold"}, blocking=True)

@@ -1,3 +1,7 @@
+# Hotel Sense (unreleased)
+- Device list: separate `room` column (where equipment is installed); `note` for department/role
+- `sensor.hotel_sense_misplaced_devices`: fixed devices seen outside their `room`, warning on the dashboard
+
 # Hotel Sense 0.2.0 (Stage A: room presence)
 - Room = HA Area, location = Area of the client's access point
 - `hotel_sense.ap_area_report` (APs without Area / mismatching a MAC table / not found) and `hotel_sense.assign_ap_areas` (MAC -> room table, matched by MAC)

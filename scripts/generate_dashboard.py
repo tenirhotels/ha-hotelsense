@@ -89,6 +89,10 @@ SUMMARY = """\
     {% if v | count %}<ha-alert alert-type="error" title="Возможные нарушения: {{ v | count }}">{{ v | map('device_attr', 'name') | join(', ') }}</ha-alert>
     {% else %}<ha-alert alert-type="success">Нарушений нет</ha-alert>
     {% endif %}
+    {%- set m = state_attr('sensor.hotel_sense_misplaced_devices', 'devices') or [] %}
+    {%- if m %}
+    <ha-alert alert-type="warning" title="Оборудование не на своём месте: {{ m | count }}">{% for d in m %}{{ d.name }}: ожидается {{ d.expected }}, видно в {{ d.seen }}<br>{% endfor %}</ha-alert>
+    {%- endif %}
 """
 
 

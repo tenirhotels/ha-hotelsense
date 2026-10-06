@@ -207,6 +207,9 @@
           "cleaning_not_started": "Cleaning not started",
           "cleaning_in_progress": "Cleaning in progress"
         }
+      },
+      "misplaced_devices": {
+        "name": "Misplaced fixed devices"
       }
     },
     "select": {

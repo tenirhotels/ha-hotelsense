@@ -189,6 +189,35 @@ def sensor_factory(manager: PresenceManager, room: RoomSnapshot) -> list[RoomEnt
     return entities
 
 
+class MisplacedFixedDevicesSensor(SensorEntity):
+    """Hotel-wide double check: fixed devices seen outside their ``room``."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "misplaced_devices"
+    _attr_native_unit_of_measurement = "devices"
+    _attr_icon = "mdi:map-marker-alert"
+
+    def __init__(self, manager: PresenceManager, device_info: DeviceInfo) -> None:
+        self.manager = manager
+        self.entity_id = "sensor.hotel_sense_misplaced_devices"
+        self._attr_unique_id = f"misplaced_devices-{manager.controller.api.controller_id}"
+        self._attr_device_info = device_info
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, self.manager.signal_presence, self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> int:
+        return len(self.manager.misplaced_fixed_devices())
+
+    @property
+    def extra_state_attributes(self):
+        return {"devices": self.manager.misplaced_fixed_devices(),
+                "data_stale": self.manager.data_stale}
+
+
 # --------------------------------------------------------------------------- #
 # select: manual room status (until the Exely PMS integration, Stage D)
 # --------------------------------------------------------------------------- #

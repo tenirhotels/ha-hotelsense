@@ -440,3 +440,27 @@ async def test_no_warnings_during_room_setup(hass, make_entry, patch_api, caplog
              and r.name.startswith(("homeassistant", "custom_components"))
              and "has not been tested by Home Assistant" not in r.getMessage()]
     assert noisy == []
+
+
+async def test_misplaced_fixed_devices_double_check(hass, make_entry, patch_api):
+    """Fixed equipment with a `room` seen on another room's AP is reported."""
+    await _hotel(hass, make_entry())
+    sensor = "sensor.hotel_sense_misplaced_devices"
+    await _import(hass, "mac,name,category,room\n"
+                        f"{GUEST_PHONE},AC06,fixed,Room 06\n"
+                        f"{SHARED_MAC},HF06,fixed,room_06\n"     # area id works too
+                        f"{WIRED_PC},AC01,fixed,Room 01\n")      # not on Wi-Fi now: skipped
+    assert _state(hass, sensor) == "0"
+
+    await _import(hass, f"mac,name,category,room\n{GUEST_PHONE},AC07,fixed,Room 07\n"
+                        f"{SHARED_MAC},HF06,fixed,Room 99\n")
+    assert _state(hass, sensor) == "2"
+    devices = {d["name"]: d for d in hass.states.get(sensor).attributes["devices"]}
+    assert devices["AC07"] | {} == {"name": "AC07", "mac": GUEST_PHONE, "expected": "Room 07",
+                                    "seen": "Room 06", "reason": "wrong_room"}
+    assert devices["HF06"]["reason"] == "unknown_room"
+
+    # Employees and fixed devices without a room are never "misplaced".
+    await _import(hass, f"mac,name,category,room\n{GUEST_PHONE},Maid,employee,Room 07\n"
+                        f"{SHARED_MAC},HF06,fixed,\n")
+    assert _state(hass, sensor) == "0"

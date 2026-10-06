@@ -65,6 +65,7 @@ and entities.
 | `binary_sensor.room_01_violation` | Possible violation (red on the dashboard) |
 | `sensor.room_01_guest_devices` / `_employee_devices` / `_fixed_devices` | Device counts; attribute `devices` lists MAC + name, `random_macs` counts private MACs |
 | `sensor.room_01_state` | Result of the rules below; attribute `data_stale` is `true` while the controller is unreachable |
+| `sensor.hotel_sense_misplaced_devices` | Hotel-wide double check: fixed devices with a `room` seen in another room (swapped AP Areas, neighbouring AP, device moved); attribute `devices` lists name, expected and seen room |
 
 Common areas (Admin House) get only presence and counts.
 

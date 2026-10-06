@@ -207,6 +207,9 @@
           "cleaning_not_started": "Уборка не началась",
           "cleaning_in_progress": "Идёт уборка"
         }
+      },
+      "misplaced_devices": {
+        "name": "Фиксированные устройства не на месте"
       }
     },
     "select": {
