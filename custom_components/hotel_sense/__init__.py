@@ -1,0 +1,44 @@
+import logging
+
+from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
+from homeassistant.core import HomeAssistant
+
+from .const import DOMAIN, PLATFORMS
+from .controller import OmadaController
+
+LOGGER = logging.getLogger(__name__)
+
+async def async_setup(hass, config) -> bool:
+    conf = config.get(DOMAIN)
+    if conf is None:
+        return True
+
+    domains_list = hass.config_entries.async_domains()
+    if DOMAIN in domains_list:
+        return True
+
+    hass.async_create_task(
+        hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data=conf)
+    )
+
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    omada_controller = OmadaController(hass, entry)
+    await omada_controller.async_setup()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = omada_controller
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    omada_controller = hass.data[DOMAIN].pop(entry.entry_id)
+    return await omada_controller.async_close()
+
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    pass
