@@ -108,7 +108,7 @@ def test_export_import_roundtrip_and_storage():
         KnownDevice("AA-BB-CC-00-02-01", CATEGORY_EMPLOYEE, "Phone", owner="Maid 1"),
     ])
     text = devices.export_csv()
-    assert text.splitlines()[0] == "mac,name,category,owner,note,room"
+    assert text.splitlines()[0] == "mac,name,category,owner,note,room,device_type"
     copy = DeviceList()
     copy.import_csv(text)
     assert copy.to_storage() == devices.to_storage()

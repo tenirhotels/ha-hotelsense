@@ -146,9 +146,15 @@ class RoomCountSensor(RoomEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
+        devices, types = [], {}
+        for mac in sorted(self._macs()):
+            kind, source = self.manager.device_kind(mac)
+            devices.append({"mac": mac, "name": self.manager.client_name(mac),
+                            "type": kind, "type_source": source})
+            types[kind] = types.get(kind, 0) + 1
         attrs = {
-            "devices": [{"mac": mac, "name": self.manager.client_name(mac)}
-                        for mac in sorted(self._macs())],
+            "devices": devices,
+            "types": dict(sorted(types.items(), key=lambda kv: (-kv[1], kv[0]))),
             "data_stale": self.manager.data_stale,
         }
         if self._category == "guest":

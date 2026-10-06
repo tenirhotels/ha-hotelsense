@@ -32,7 +32,12 @@ views:
               {%- set f = states('sensor.room_01_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_01_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 01 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 01** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -58,7 +63,12 @@ views:
               {%- set f = states('sensor.room_02_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_02_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 02 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 02** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -84,7 +94,12 @@ views:
               {%- set f = states('sensor.room_03_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_03_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 03 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 03** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -110,7 +125,12 @@ views:
               {%- set f = states('sensor.room_04_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_04_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 04 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 04** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -136,7 +156,12 @@ views:
               {%- set f = states('sensor.room_05_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_05_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 05 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 05** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -162,7 +187,12 @@ views:
               {%- set f = states('sensor.room_06_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_06_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 06 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 06** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -188,7 +218,12 @@ views:
               {%- set f = states('sensor.room_07_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_07_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 07 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 07** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -214,7 +249,12 @@ views:
               {%- set f = states('sensor.room_08_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_08_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 08 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 08** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -240,7 +280,12 @@ views:
               {%- set f = states('sensor.room_09_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_09_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 09 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 09** — {{ label }}<br>{{ line }}
               {% endif %}
@@ -266,7 +311,12 @@ views:
               {%- set f = states('sensor.room_10_fixed_devices') -%}
               {%- set label = {'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', 'checked_in': 'Checked in'}.get(st, st) -%}
               {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
-              {%- set line = 'Guests: ' ~ g ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
+              {%- set gt = state_attr('sensor.room_10_guest_devices', 'types') or {} -%}
+              {%- set kinds = {'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', 'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', 'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'} -%}
+              {%- set ns = namespace(p=[]) -%}
+              {%- for k, n in gt.items() %}{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}{% endfor -%}
+              {%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}
+              {%- set line = 'Guests: ' ~ g ~ gtxt ~ ' · Staff: ' ~ e ~ ' · Fixed: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 10 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 10** — {{ label }}<br>{{ line }}
               {% endif %}

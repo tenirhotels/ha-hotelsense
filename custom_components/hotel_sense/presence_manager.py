@@ -18,6 +18,7 @@ from .const import (
     EVENT_ROOM_STATE_CHANGED,
 )
 from .mac import parse_mac
+from .device_kind import resolve_kind
 from .device_list import CATEGORY_FIXED
 from .presence import AreaPresence, Observation, PresenceEngine, evaluate_room
 from .storage import DeviceListStore
@@ -204,6 +205,20 @@ class PresenceManager:
                 "reason": "wrong_room" if expected is not None else "unknown_room",
             })
         return sorted(result, key=lambda d: d["name"])
+
+    def _omada_raw(self, mac: str) -> dict | None:
+        api = self.controller.api
+        for collection in (api.clients, api.known_clients):
+            item = collection.items.get(mac)
+            if item is not None:
+                return getattr(item, "_raw", None)
+        return None
+
+    def device_kind(self, mac: str) -> tuple[str, str]:
+        """(kind, source): owner's list, then Omada, then hostname, then private MAC."""
+        listed = self.store.devices.get(mac)
+        return resolve_kind(mac, listed=listed.device_type if listed else None,
+                            omada_raw=self._omada_raw(mac), name=self.client_name(mac))
 
     def client_name(self, mac: str) -> str:
         if (known := self.store.devices.get(mac)) and known.name:

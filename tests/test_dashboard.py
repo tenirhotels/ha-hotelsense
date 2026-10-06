@@ -117,3 +117,19 @@ async def test_english_dashboard_renders(hass, make_entry, patch_api):
     # No Russian left in the English version.
     text = generator.build_dashboard(generator.DEFAULT_ROOMS, generator.DEFAULT_COMMON, "en")
     assert not any("а" <= ch.lower() <= "я" for ch in text)
+
+
+async def test_room_card_lists_guest_device_types(hass, make_entry, patch_api):
+    from .fakes import client_raw
+    from .test_stage_a import _poll, _set_clients
+    controller = await _hotel(hass, make_entry(), {AP_WF06: "Room 06", AP_WF07: "Admin House"})
+    _set_clients(patch_api, [
+        client_raw(GUEST_PHONE, "Guest-Phone") | {"deviceCategory": "Mobile", "deviceType": "Mobile"},
+        client_raw(SHARED_MAC, SHARED_MAC)])
+    await _poll(hass, controller)
+    for lang, expected in (("ru", "Гости: 2 (личное устройство ×1, телефон ×1)"),
+                           ("en", "Guests: 2 (personal device ×1, phone ×1)")):
+        cards = _cards(yaml.safe_load(generator.build_dashboard(["room_06"], [], lang)))
+        room = Template([c for c in cards if c["type"] == "markdown"][1]["content"],
+                        hass).async_render(parse_result=False)
+        assert expected in room, room

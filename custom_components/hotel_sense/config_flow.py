@@ -61,6 +61,7 @@ from .const import (
 )
 from .areas import resolve_ap_areas
 from .controller import OmadaController, get_api_controller
+from .device_kind import LISTABLE_KINDS
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
 from .storage import async_get_device_store
 
@@ -70,6 +71,7 @@ CONF_CATEGORY = "category"
 CONF_OWNER = "owner"
 CONF_NOTE = "note"
 CONF_ROOM = "room"
+CONF_DEVICE_TYPE = "device_type"
 CONF_DEVICES = "devices"
 CONF_CSV = "csv"
 CONF_REPLACE = "replace"
@@ -449,6 +451,9 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
             vol.Optional(CONF_OWNER, default=d.owner if d else ""): str,
             vol.Optional(CONF_NOTE, default=d.note if d else ""): str,
             vol.Optional(CONF_ROOM, default=d.room if d else ""): str,
+            vol.Optional(CONF_DEVICE_TYPE, default=(d.device_type if d else "") or "auto"): SelectSelector(
+                SelectSelectorConfig(options=["auto", *LISTABLE_KINDS], translation_key=CONF_DEVICE_TYPE,
+                                     mode=SelectSelectorMode.DROPDOWN)),
         })
 
     async def _save_device(self, user_input: dict[str, Any], replace_mac: str | None,
@@ -457,7 +462,9 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
             device = KnownDevice(
                 mac=user_input[CONF_MAC], category=user_input[CONF_CATEGORY],
                 name=user_input.get(CONF_NAME, ""), owner=user_input.get(CONF_OWNER, ""),
-                note=user_input.get(CONF_NOTE, ""), room=user_input.get(CONF_ROOM, ""))
+                note=user_input.get(CONF_NOTE, ""), room=user_input.get(CONF_ROOM, ""),
+                device_type="" if user_input.get(CONF_DEVICE_TYPE, "auto") == "auto"
+                else user_input[CONF_DEVICE_TYPE])
         except ValueError:
             errors[CONF_MAC] = "invalid_mac"
             return False

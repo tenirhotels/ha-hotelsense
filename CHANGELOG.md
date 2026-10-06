@@ -1,4 +1,5 @@
 # Hotel Sense (unreleased)
+- Device type per device (list → Omada → hostname → private MAC → unknown), `types` counts, shown on the dashboard; `device_type` column in the device list
 - Settings texts fully follow the interface language (the "new key generated" notice no longer depends on the server language); English dashboard `dashboards/hotel_sense_rooms_en.yaml`
 - Exely webhook: regenerate a compromised API key and/or webhook address from the settings
 - Exely PMS webhook: check-in / check-out sets the room status (API-KEY header, room matching by number or mapping, `sensor.hotel_sense_exely_last_event`, recent payloads in diagnostics)
