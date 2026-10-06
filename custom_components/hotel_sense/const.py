@@ -52,3 +52,8 @@ CONF_EXELY_ROOM_MAP = "exely_room_map"  # options: "101 = Room 01" lines
 CONF_EXELY_NEW_KEY = "exely_new_key"  # options-flow checkbox, not stored
 CONF_EXELY_NEW_URL = "exely_new_url"  # options-flow checkbox, not stored
 EVENT_EXELY = f"{DOMAIN}_exely_event"
+
+# Who set a room status (attribute ``source`` of the status select).
+STATUS_SOURCE_MANUAL = "manual"
+STATUS_SOURCE_EXELY = "exely"
+STATUS_SOURCE_RESTORED = "restored"  # kept from before a restart / reload

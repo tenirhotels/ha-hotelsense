@@ -20,13 +20,18 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, STATUS_SOURCE_RESTORED
 from .ids import make_room_unique_id
 from .presence import (LEGACY_STATUSES, ROOM_STATES, STATE_VIOLATION, STATUS_CHECKED_OUT,
                        STATUSES)
 from .presence_manager import PresenceManager, RoomSnapshot
 
 MANUFACTURER = "Hotel Sense"
+
+# Room status select attributes: who set the status and when.
+ATTR_SOURCE = "source"          # manual / exely / restored
+ATTR_CHANGED_AT = "changed_at"  # time of the last real change (UTC, ISO)
+ATTR_SET_BY = "set_by"          # for "restored": who had set it (manual / exely)
 
 
 def room_device_info(manager: PresenceManager, room: RoomSnapshot) -> DeviceInfo:
@@ -267,6 +272,7 @@ class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
 
     def __init__(self, manager, area_id) -> None:
         super().__init__(manager, area_id, "room_status", "status")
+        self._restored_from: str | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -274,11 +280,26 @@ class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
         status = LEGACY_STATUSES.get(last.state, last.state) if last else None
         if status not in STATUSES:
             status = STATUS_CHECKED_OUT
-        self.manager.async_set_status(self.area_id, status)
+        # The status is the one from before the restart: say so, and keep the time
+        # of the real change (and who made it) for reference.
+        attrs = last.attributes if last else {}
+        self.manager.async_set_status(self.area_id, status, STATUS_SOURCE_RESTORED,
+                                      attrs.get(ATTR_CHANGED_AT))
+        if prev := attrs.get(ATTR_SOURCE):
+            self._restored_from = prev if prev != STATUS_SOURCE_RESTORED else attrs.get(ATTR_SET_BY)
 
     @property
     def current_option(self) -> str | None:
         return self.manager.statuses.get(self.area_id)
+
+    @property
+    def extra_state_attributes(self):
+        source, changed_at = self.manager.status_origin.get(self.area_id, (None, None))
+        attrs = {ATTR_SOURCE: source, ATTR_CHANGED_AT: changed_at}
+        if source == STATUS_SOURCE_RESTORED:
+            # Who set it originally (manual / exely), if known.
+            attrs[ATTR_SET_BY] = self._restored_from
+        return attrs
 
     async def async_select_option(self, option: str) -> None:
         self.manager.async_set_status(self.area_id, option)

@@ -269,6 +269,26 @@
         "state": {
           "checked_in": "Checked in",
           "checked_out": "Checked out"
+        },
+        "state_attributes": {
+          "source": {
+            "name": "Источник",
+            "state": {
+              "manual": "Вручную",
+              "exely": "Exely",
+              "restored": "Восстановлен после перезапуска"
+            }
+          },
+          "changed_at": {
+            "name": "Изменён"
+          },
+          "set_by": {
+            "name": "Изначально установил",
+            "state": {
+              "manual": "Вручную",
+              "exely": "Exely"
+            }
+          }
         }
       }
     }

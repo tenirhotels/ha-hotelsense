@@ -269,6 +269,26 @@
         "state": {
           "checked_in": "Checked in",
           "checked_out": "Checked out"
+        },
+        "state_attributes": {
+          "source": {
+            "name": "Set by",
+            "state": {
+              "manual": "Manual",
+              "exely": "Exely",
+              "restored": "Restored after restart"
+            }
+          },
+          "changed_at": {
+            "name": "Changed at"
+          },
+          "set_by": {
+            "name": "Originally set by",
+            "state": {
+              "manual": "Manual",
+              "exely": "Exely"
+            }
+          }
         }
       }
     }
