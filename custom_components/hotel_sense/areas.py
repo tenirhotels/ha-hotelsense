@@ -73,7 +73,7 @@ def parse_mac_table(mapping: Mapping[str, str] | None = None,
             errors.append(str(err))
     if csv_text:
         for line_no, row in parse_csv_rows(csv_text, fields=("mac", "area")):
-            area = row.get("area") or row.get("note") or ""
+            area = row.get("area") or row.get("room") or ""
             try:
                 mac = parse_mac(row.get("mac", ""))
             except ValueError as err:

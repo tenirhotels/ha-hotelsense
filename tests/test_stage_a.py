@@ -207,7 +207,7 @@ async def test_fixed_and_employee_devices_are_classified(hass, make_entry, patch
 
     export = await hass.services.async_call(
         DOMAIN, "export_devices", {}, blocking=True, return_response=True)
-    assert export["csv"].startswith("mac,name,category,owner,note\n")
+    assert export["csv"].startswith("mac,name,category,owner,note,room\n")
     assert len(export["devices"]) == 2
 
 

@@ -66,6 +66,7 @@ CONF_NAME = "name"
 CONF_CATEGORY = "category"
 CONF_OWNER = "owner"
 CONF_NOTE = "note"
+CONF_ROOM = "room"
 CONF_DEVICES = "devices"
 CONF_CSV = "csv"
 CONF_REPLACE = "replace"
@@ -444,6 +445,7 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
                                      mode=SelectSelectorMode.LIST)),
             vol.Optional(CONF_OWNER, default=d.owner if d else ""): str,
             vol.Optional(CONF_NOTE, default=d.note if d else ""): str,
+            vol.Optional(CONF_ROOM, default=d.room if d else ""): str,
         })
 
     async def _save_device(self, user_input: dict[str, Any], replace_mac: str | None,
@@ -452,7 +454,7 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
             device = KnownDevice(
                 mac=user_input[CONF_MAC], category=user_input[CONF_CATEGORY],
                 name=user_input.get(CONF_NAME, ""), owner=user_input.get(CONF_OWNER, ""),
-                note=user_input.get(CONF_NOTE, ""))
+                note=user_input.get(CONF_NOTE, ""), room=user_input.get(CONF_ROOM, ""))
         except ValueError:
             errors[CONF_MAC] = "invalid_mac"
             return False

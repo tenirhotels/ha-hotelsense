@@ -104,11 +104,11 @@ def test_replace_with_only_broken_rows_keeps_list():
 
 def test_export_import_roundtrip_and_storage():
     devices = DeviceList([
-        KnownDevice("AA-BB-CC-00-00-01", CATEGORY_FIXED, "AC01", note="Room 01"),
+        KnownDevice("AA-BB-CC-00-00-01", CATEGORY_FIXED, "AC01", room="Room 01"),
         KnownDevice("AA-BB-CC-00-02-01", CATEGORY_EMPLOYEE, "Phone", owner="Maid 1"),
     ])
     text = devices.export_csv()
-    assert text.splitlines()[0] == "mac,name,category,owner,note"
+    assert text.splitlines()[0] == "mac,name,category,owner,note,room"
     copy = DeviceList()
     copy.import_csv(text)
     assert copy.to_storage() == devices.to_storage()
@@ -128,3 +128,30 @@ def test_remove():
     assert devices.remove("aa:bb:cc:00:00:01") is True
     assert devices.remove("aa:bb:cc:00:00:01") is False
     assert "AA-BB-CC-00-00-01" not in devices
+
+
+def test_note_and_room_are_separate_columns():
+    """Owner's format: department in `note`, installation room in `room`."""
+    devices = DeviceList()
+    result = devices.import_csv(
+        "mac,name,category,owner,note,room\n"
+        "AA-BB-CC-00-00-01,AC01,fixed,,,Room 01\n"
+        "AA-BB-CC-00-02-01,Admin phone,employee,Admin,Superviser,\n")
+    assert (result.added, result.errors) == (2, [])
+    ac, phone = devices.get("AA-BB-CC-00-00-01"), devices.get("AA-BB-CC-00-02-01")
+    assert (ac.room, ac.note) == ("Room 01", "")
+    assert (phone.owner, phone.note, phone.room) == ("Admin", "Superviser", "")
+
+
+def test_room_only_and_russian_headers():
+    devices = DeviceList()
+    devices.import_csv("mac;Устройство;Категория;Номер;Отдел\naa:bb:cc:00:00:01;AC01;fixed;Room 01;Техслужба\n")
+    d = devices.get("AA-BB-CC-00-00-01")
+    assert (d.room, d.note) == ("Room 01", "Техслужба")
+
+
+def test_storage_from_before_room_field_still_loads():
+    old = {"devices": [{"mac": "AA-BB-CC-00-00-01", "category": "fixed", "name": "AC01",
+                        "owner": "", "note": "Room 01"}]}
+    d = DeviceList.from_storage(old).get("AA-BB-CC-00-00-01")
+    assert (d.note, d.room) == ("Room 01", "")

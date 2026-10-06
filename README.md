@@ -39,7 +39,9 @@ and entities.
    ```
 3. **Fixed and employee devices.** Settings → Devices & services → Hotel Sense →
    Configure → *Fixed and employee devices*: add / edit / delete, import and
-   export CSV (`mac,name,category,owner,note`, category `fixed` or `employee`).
+   export CSV (`mac,name,category,owner,note,room`, category `fixed` or `employee`;
+   `owner` = employee name, `note` = department/role, `room` = where equipment is
+   installed, reference only: the location always comes from the AP).
    MACs are accepted in any notation (`aa:bb:..`, `AA-BB-..`, `aabb.ccdd.eeff`).
    Same via the `hotel_sense.import_devices` / `hotel_sense.export_devices` actions.
    The list is stored in `.storage/hotel_sense.devices` (never in this repo).

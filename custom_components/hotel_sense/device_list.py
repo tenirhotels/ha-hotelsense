@@ -44,11 +44,12 @@ _HEADER_ALIASES = {
     "name": ("name", "device", "device name", "имя", "название", "устройство"),
     "category": ("category", "type", "kind", "категория", "тип"),
     "owner": ("owner", "person", "employee", "владелец", "сотрудник"),
-    "note": ("note", "notes", "comment", "room", "примечание", "комментарий", "номер"),
+    "note": ("note", "notes", "comment", "department", "примечание", "комментарий", "отдел"),
+    "room": ("room", "номер", "комната"),
     "area": ("area", "ha area", "помещение", "зона"),
 }
 
-CSV_FIELDS = ("mac", "name", "category", "owner", "note")
+CSV_FIELDS = ("mac", "name", "category", "owner", "note", "room")
 
 
 def parse_category(value: str | None, default: str | None = None) -> str:
@@ -69,6 +70,7 @@ class KnownDevice:
     name: str = ""
     owner: str = ""
     note: str = ""
+    room: str = ""  # where the device is installed (reference only; location comes from the AP)
 
     def __post_init__(self) -> None:
         self.mac = parse_mac(self.mac)
@@ -76,6 +78,7 @@ class KnownDevice:
         self.name = (self.name or "").strip()
         self.owner = (self.owner or "").strip()
         self.note = (self.note or "").strip()
+        self.room = (self.room or "").strip()
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -172,6 +175,7 @@ class DeviceList:
                     name=row.get("name", ""),
                     owner=row.get("owner", ""),
                     note=row.get("note", ""),
+                    room=row.get("room", ""),
                 ))
             except ValueError as err:
                 result.errors.append(f"line {line_no}: {err}")
