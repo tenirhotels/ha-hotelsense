@@ -1,0 +1,17 @@
+# Folders
+__pycache__/
+venv/
+.venv/
+.idea/
+.vscode/
+.venv/
+private/
+
+# Files
+pythonenv*
+.python-version
+.coverage
+
+# Local hotel data (never commit real MACs / device lists)
+*.csv
+!tests/**/*.csv
