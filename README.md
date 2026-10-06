@@ -69,7 +69,9 @@ sets the room status from check-in / check-out events.
    URL and the API key (both generated once, random).
 2. In Exely: Настройка гостиницы → Подключение API → your connection → Вебхуки:
    «Использование вебхуков» = Да, URL from step 1, authentication «API-ключ»
-   with the key from step 1, events: only check-in and check-out. Save.
+   with the key from step 1, events: check-in, check-out and their
+   cancellations (a cancelled check-in sets the room back to checked out, a
+   cancelled check-out back to checked in). Save.
 3. Rooms are matched automatically by name or number (Exely `Room 01`, `01` or
    `1` → Area `Room 01`) only when that is unambiguous. Other numbering (e.g.
    `101`) needs lines like `101 = Room 01` in the room mapping on the same page.
