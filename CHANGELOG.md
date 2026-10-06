@@ -1,4 +1,10 @@
-# Hotel Sense (unreleased)
+# Hotel Sense 0.2.1
+- Room status select shows who set the status: `source` = manual / exely / restored (after a restart), `changed_at`, and `set_by` for a restored status
+- Controller outage: a failing re-login no longer aborts the poll; rooms are flagged `data_stale`
+- Room device lists (`devices`, `types`) are no longer written to the recorder database
+- Access point devices are always on (the "track devices" option is gone: rooms need them)
+- Exely settings: `Authentication: API-KEY`; the webhook address is always shown as https
+- Brand icon; HACS validation passes
 - Exely: cancelled check-in / check-out undo the status (previously a "CheckInCancelled" event would have been read as a check-in)
 - Access points always get Uptime and Clients (total) sensors; CPU/memory and per-band/guest/user counts stay behind their options
 - Removed "Start WLAN Optimization", "WLAN Optimization Running", "Reconnect All Clients" and per-client "Reconnect" (not needed; reconnect failed on controller v6); existing entities are cleaned up on load

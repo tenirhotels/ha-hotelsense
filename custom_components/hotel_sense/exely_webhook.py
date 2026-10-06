@@ -26,6 +26,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_EXELY_API_KEY, CONF_EXELY_ROOM_MAP, CONF_EXELY_WEBHOOK_ID, DOMAIN, EVENT_EXELY,
+    STATUS_SOURCE_EXELY,
 )
 from .exely import parse_event, parse_room_map, room_number
 
@@ -167,7 +168,7 @@ class ExelyReceiver:
             if (area_id := self.resolve_room(label)) is None:
                 result["unresolved"].append(label)
                 continue
-            self.manager.async_set_status(area_id, parsed.status)
+            self.manager.async_set_status(area_id, parsed.status, STATUS_SOURCE_EXELY)
             result["applied"].append(self.manager.rooms[area_id].name)
         result["result"] = (RESULT_UNMATCHED if not result["applied"]
                             else RESULT_PARTIAL if result["unresolved"] else RESULT_APPLIED)

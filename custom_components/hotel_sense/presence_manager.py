@@ -15,7 +15,7 @@ from .areas import resolve_ap_areas, resolve_area
 from .const import (
     CONF_COMMON_AREAS, CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE,
     DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE, DOMAIN,
-    EVENT_ROOM_STATE_CHANGED,
+    EVENT_ROOM_STATE_CHANGED, STATUS_SOURCE_MANUAL, STATUS_SOURCE_RESTORED,
 )
 from .mac import parse_mac
 from .device_kind import resolve_kind
@@ -49,6 +49,8 @@ class PresenceManager:
         self.engine = PresenceEngine()
         self.rooms: dict[str, RoomSnapshot] = {}
         self.statuses: dict[str, str] = {}
+        # area_id -> (source, changed_at ISO): who set the status and when.
+        self.status_origin: dict[str, tuple[str, str | None]] = {}
         self.data_stale = False
         self.common_areas: set[str] | None = None
         self.load_options()
@@ -171,10 +173,15 @@ class PresenceManager:
         async_dispatcher_send(self.hass, self.signal_presence)
 
     @callback
-    def async_set_status(self, area_id: str, status: str) -> None:
+    def async_set_status(self, area_id: str, status: str, source: str = STATUS_SOURCE_MANUAL,
+                         changed_at: str | None = None) -> None:
+        """Set a room status. ``source``: manual / exely / restored (after a restart)."""
         if self.statuses.get(area_id) == status:
             return
         self.statuses[area_id] = status
+        if source != STATUS_SOURCE_RESTORED:
+            changed_at = dt_util.utcnow().isoformat()
+        self.status_origin[area_id] = (source, changed_at)
         self.async_refresh()
 
     # -- helpers for entities -------------------------------------------- #
