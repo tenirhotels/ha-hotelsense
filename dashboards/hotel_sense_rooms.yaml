@@ -6,19 +6,23 @@ views:
   - title: Номера
     path: rooms
     icon: mdi:bed
-    type: masonry
-    cards:
-      - type: markdown
-        content: |
-          {%- set v = integration_entities('hotel_sense') | select('match', 'binary_sensor\\..*_violation$') | select('is_state', 'on') | list -%}
-          {% if v | count %}<ha-alert alert-type="error" title="Возможные нарушения: {{ v | count }}">{{ v | map('device_attr', 'name') | join(', ') }}</ha-alert>
-          {% else %}<ha-alert alert-type="success">Нарушений нет</ha-alert>
-          {% endif %}
-          {%- set m = state_attr('sensor.hotel_sense_misplaced_devices', 'devices') or [] %}
-          {%- if m %}
-          <ha-alert alert-type="warning" title="Оборудование не на своём месте: {{ m | count }}">{% for d in m %}{{ d.name }}: ожидается {{ d.expected }}, видно в {{ d.seen }}<br>{% endfor %}</ha-alert>
-          {%- endif %}
-      - type: vertical-stack
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        column_span: 4
+        cards:
+          - type: markdown
+            content: |
+              {%- set v = integration_entities('hotel_sense') | select('match', 'binary_sensor\\..*_violation$') | select('is_state', 'on') | list -%}
+              {% if v | count %}<ha-alert alert-type="error" title="Возможные нарушения: {{ v | count }}">{{ v | map('device_attr', 'name') | join(', ') }}</ha-alert>
+              {% else %}<ha-alert alert-type="success">Нарушений нет</ha-alert>
+              {% endif %}
+              {%- set m = state_attr('sensor.hotel_sense_misplaced_devices', 'devices') or [] %}
+              {%- if m %}
+              <ha-alert alert-type="warning" title="Оборудование не на своём месте: {{ m | count }}">{% for d in m %}{{ d.name }}: ожидается {{ d.expected }}, видно в {{ d.seen }}<br>{% endfor %}</ha-alert>
+              {%- endif %}
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -39,9 +43,12 @@ views:
             entity: select.room_01_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -62,9 +69,12 @@ views:
             entity: select.room_02_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -85,9 +95,12 @@ views:
             entity: select.room_03_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -108,9 +121,12 @@ views:
             entity: select.room_04_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -131,9 +147,12 @@ views:
             entity: select.room_05_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -154,9 +173,12 @@ views:
             entity: select.room_06_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -177,9 +199,12 @@ views:
             entity: select.room_07_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -200,9 +225,12 @@ views:
             entity: select.room_08_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -223,9 +251,12 @@ views:
             entity: select.room_09_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: vertical-stack
+      - type: grid
         cards:
           - type: markdown
             content: |
@@ -246,9 +277,14 @@ views:
             entity: select.room_10_status
             name: Статус
             hide_state: true
+            grid_options:
+              columns: full
+            features_position: bottom
             features:
               - type: select-options
-      - type: markdown
-        content: |
-          **Admin House**<br>
-          Гости: {{ states('sensor.admin_house_guest_devices') }} · Сотрудники: {{ states('sensor.admin_house_employee_devices') }} · Фикс.: {{ states('sensor.admin_house_fixed_devices') }}
+      - type: grid
+        cards:
+          - type: markdown
+            content: |
+              **Admin House**<br>
+              Гости: {{ states('sensor.admin_house_guest_devices') }} · Сотрудники: {{ states('sensor.admin_house_employee_devices') }} · Фикс.: {{ states('sensor.admin_house_fixed_devices') }}
