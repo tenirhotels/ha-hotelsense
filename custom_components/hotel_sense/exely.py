@@ -20,6 +20,7 @@ from .presence import STATUS_CHECKED_IN, STATUS_CHECKED_OUT
 _EVENT_KEYS = {"event", "eventtype", "eventname", "type", "action", "name", "topic", "kind"}
 _CHECK_IN = ("checkin", "checkedin", "arrival", "arrived", "заезд", "заселен", "заселён")
 _CHECK_OUT = ("checkout", "checkedout", "departure", "departed", "выезд", "выселен")
+_CANCEL = ("cancel", "undo", "revert", "rollback", "annul", "отмен", "аннулир")
 # Keys that may carry the room number/name.
 # (room type, room id, rooms count ... do not match).
 _ROOM_KEY = re.compile(r"^(room|номер|комната)(number|num|no|name|code|title)?$")
@@ -42,12 +43,21 @@ def _walk(node, depth: int = 0) -> Iterator[tuple[str, object, int]]:
 
 
 def status_from_event(name: str) -> str | None:
+    """Check-in -> checked_in, check-out -> checked_out.
+
+    A cancelled check-in puts the room back to checked_out and a cancelled
+    check-out back to checked_in ("CheckInCancelled", "Отмена заезда" ...),
+    so the word "checkin" in a cancellation must not be read as a check-in.
+    """
     text = _norm_key(name)
     is_in = any(word in text for word in _CHECK_IN)
     is_out = any(word in text for word in _CHECK_OUT)
     if is_in == is_out:
         return None  # neither, or both (ambiguous)
-    return STATUS_CHECKED_IN if is_in else STATUS_CHECKED_OUT
+    cancelled = any(word in text for word in _CANCEL)
+    if is_in != cancelled:
+        return STATUS_CHECKED_IN
+    return STATUS_CHECKED_OUT
 
 
 @dataclass

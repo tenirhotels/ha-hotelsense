@@ -30,6 +30,11 @@ from .test_stage_a import _hotel, _options_menu, _state
     ("check-out", STATUS_CHECKED_OUT), ("CheckedOut", STATUS_CHECKED_OUT),
     ("Выезд", STATUS_CHECKED_OUT), ("departure", STATUS_CHECKED_OUT),
     ("BookingCreated", None), ("booking.cancelled", None),
+    # Cancellations undo the previous status.
+    ("CheckInCancelled", STATUS_CHECKED_OUT), ("check_in.cancel", STATUS_CHECKED_OUT),
+    ("Отмена заезда", STATUS_CHECKED_OUT), ("UndoCheckIn", STATUS_CHECKED_OUT),
+    ("CheckOutCancelled", STATUS_CHECKED_IN), ("Отмена выезда", STATUS_CHECKED_IN),
+    ("checkout.reverted", STATUS_CHECKED_IN),
     ("checkin_and_checkout", None),  # ambiguous
 ])
 def test_status_from_event(name, expected):
@@ -266,3 +271,16 @@ async def test_saving_without_checkboxes_keeps_secrets(hass, make_entry, patch_a
     result = await _rotate(hass, entry)
     assert result["type"].value == "create_entry"
     assert (entry.data[CONF_EXELY_API_KEY], entry.data[CONF_EXELY_WEBHOOK_ID]) == before
+
+
+async def test_cancelled_check_in_and_check_out_undo_the_status(hass, make_entry, patch_api,
+                                                                 hass_client_no_auth):
+    entry = await _exely_hotel(hass, make_entry)
+    client = await hass_client_no_auth()
+    steps = (("CheckIn", "checked_in"), ("CheckInCancelled", "checked_out"),
+             ("CheckIn", "checked_in"), ("CheckOut", "checked_out"),
+             ("CheckOutCancelled", "checked_in"))
+    for event, expected in steps:
+        await _post(client, entry, {"event": event, "room": "06"})
+        await hass.async_block_till_done()
+        assert _state(hass, "select.room_06_status") == expected, event
