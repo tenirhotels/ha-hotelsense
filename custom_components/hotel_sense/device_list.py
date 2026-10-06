@@ -17,6 +17,7 @@ import csv
 import io
 from dataclasses import asdict, dataclass, field
 
+from .device_kind import parse_kind
 from .mac import parse_mac
 
 CATEGORY_FIXED = "fixed"
@@ -46,10 +47,11 @@ _HEADER_ALIASES = {
     "owner": ("owner", "person", "employee", "владелец", "сотрудник"),
     "note": ("note", "notes", "comment", "department", "примечание", "комментарий", "отдел"),
     "room": ("room", "номер", "комната"),
+    "device_type": ("device_type", "device type", "devicetype", "тип устройства", "вид"),
     "area": ("area", "ha area", "помещение", "зона"),
 }
 
-CSV_FIELDS = ("mac", "name", "category", "owner", "note", "room")
+CSV_FIELDS = ("mac", "name", "category", "owner", "note", "room", "device_type")
 
 
 def parse_category(value: str | None, default: str | None = None) -> str:
@@ -71,6 +73,7 @@ class KnownDevice:
     owner: str = ""
     note: str = ""
     room: str = ""  # where the device is installed (reference only; location comes from the AP)
+    device_type: str = ""  # device_kind.KINDS value set by the owner; "" = detect
 
     def __post_init__(self) -> None:
         self.mac = parse_mac(self.mac)
@@ -79,6 +82,7 @@ class KnownDevice:
         self.owner = (self.owner or "").strip()
         self.note = (self.note or "").strip()
         self.room = (self.room or "").strip()
+        self.device_type = parse_kind(self.device_type)
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -176,6 +180,7 @@ class DeviceList:
                     owner=row.get("owner", ""),
                     note=row.get("note", ""),
                     room=row.get("room", ""),
+                    device_type=row.get("device_type", ""),
                 ))
             except ValueError as err:
                 result.errors.append(f"line {line_no}: {err}")

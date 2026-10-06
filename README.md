@@ -43,7 +43,7 @@ and entities.
    ```
 3. **Fixed and employee devices.** Settings → Devices & services → Hotel Sense →
    Configure → *Fixed and employee devices*: add / edit / delete, import and
-   export CSV (`mac,name,category,owner,note,room`, category `fixed` or `employee`;
+   export CSV (`mac,name,category,owner,note,room,device_type`, category `fixed` or `employee`;
    `owner` = employee name, `note` = department/role, `room` = where equipment is
    installed, reference only: the location always comes from the AP).
    MACs are accepted in any notation (`aa:bb:..`, `AA-BB-..`, `aabb.ccdd.eeff`).
@@ -101,6 +101,15 @@ once and the form shows the new value to enter in Exely.
 | `sensor.hotel_sense_misplaced_devices` | Hotel-wide double check: fixed devices with a `room` seen in another room (swapped AP Areas, neighbouring AP, device moved); attribute `devices` lists name, expected and seen room |
 
 Common areas (Admin House) get only presence and counts.
+
+**Device type.** Each device in the `devices` attribute has a `type` (phone,
+tablet, computer, watch, tv, appliance, printer, pos, personal, other, unknown)
+and its `type_source`, taken from the first source that knows it: the
+`device_type` column of your device list → Omada's own classification → the
+hostname (`iPhone`, `Galaxy`…) → a private (random) MAC, which only personal
+devices use (`personal` = phone / tablet / laptop) → `unknown`. The `types`
+attribute counts them, and the dashboard shows e.g. "Гости: 3 (телефон ×2,
+личное устройство ×1)".
 
 ### Rules
 

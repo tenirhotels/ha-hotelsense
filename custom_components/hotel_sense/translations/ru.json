@@ -116,7 +116,8 @@
           "category": "Категория",
           "owner": "Владелец (сотрудник)",
           "note": "Примечание (отдел / роль)",
-          "room": "Помещение (где установлено)"
+          "room": "Помещение (где установлено)",
+          "device_type": "Тип устройства"
         }
       },
       "device_edit_select": {
@@ -133,7 +134,8 @@
           "category": "Категория",
           "owner": "Владелец (сотрудник)",
           "note": "Примечание (отдел / роль)",
-          "room": "Помещение (где установлено)"
+          "room": "Помещение (где установлено)",
+          "device_type": "Тип устройства"
         }
       },
       "device_delete": {
@@ -144,7 +146,7 @@
       },
       "device_import": {
         "title": "Импорт CSV",
-        "description": "Колонки: mac, name, category (fixed/employee), owner, note, room. MAC в любом формате. Разделитель — запятая или точка с запятой.\n{result}",
+        "description": "Колонки: mac, name, category (fixed/employee), owner, note, room, device_type. MAC в любом формате. Разделитель — запятая или точка с запятой.\n{result}",
         "data": {
           "csv": "CSV",
           "default_category": "Категория для строк без категории",
@@ -201,6 +203,20 @@
       "options": {
         "fixed": "Фиксированное (оборудование)",
         "employee": "Сотрудник"
+      }
+    },
+    "device_type": {
+      "options": {
+        "auto": "Определять автоматически",
+        "phone": "Телефон",
+        "tablet": "Планшет",
+        "computer": "Компьютер / ноутбук",
+        "watch": "Часы",
+        "tv": "Телевизор",
+        "appliance": "Техника (кондиционер, увлажнитель, умный дом)",
+        "printer": "Принтер",
+        "pos": "Платёжный терминал",
+        "other": "Другое"
       }
     }
   },
@@ -301,7 +317,7 @@
     },
     "import_devices": {
       "name": "Импорт устройств",
-      "description": "Импорт фиксированных устройств и устройств сотрудников из CSV (mac, name, category, owner, note, room).",
+      "description": "Импорт фиксированных устройств и устройств сотрудников из CSV (mac, name, category, owner, note, room, device_type).",
       "fields": {
         "csv": {
           "name": "CSV",

@@ -111,7 +111,8 @@
           "category": "Category",
           "owner": "Owner (employee)",
           "note": "Note (department / role)",
-          "room": "Room (where installed)"
+          "room": "Room (where installed)",
+          "device_type": "Device type"
         }
       },
       "device_edit_select": {
@@ -128,7 +129,8 @@
           "category": "Category",
           "owner": "Owner (employee)",
           "note": "Note (department / role)",
-          "room": "Room (where installed)"
+          "room": "Room (where installed)",
+          "device_type": "Device type"
         }
       },
       "device_delete": {
@@ -139,7 +141,7 @@
       },
       "device_import": {
         "title": "Import CSV",
-        "description": "Columns: mac, name, category (fixed/employee), owner, note, room. Any MAC notation is accepted. Comma or semicolon separated.\n{result}",
+        "description": "Columns: mac, name, category (fixed/employee), owner, note, room, device_type. Any MAC notation is accepted. Comma or semicolon separated.\n{result}",
         "data": {
           "csv": "CSV",
           "default_category": "Category for rows without one",
@@ -196,6 +198,20 @@
       "options": {
         "fixed": "Fixed (equipment)",
         "employee": "Employee"
+      }
+    },
+    "device_type": {
+      "options": {
+        "auto": "Detect automatically",
+        "phone": "Phone",
+        "tablet": "Tablet",
+        "computer": "Computer / laptop",
+        "watch": "Watch",
+        "tv": "TV",
+        "appliance": "Appliance (AC, humidifier, smart home)",
+        "printer": "Printer",
+        "pos": "Payment terminal",
+        "other": "Other"
       }
     }
   },
@@ -296,7 +312,7 @@
     },
     "import_devices": {
       "name": "Import devices",
-      "description": "Imports fixed/employee devices from CSV (mac, name, category, owner, note, room).",
+      "description": "Imports fixed/employee devices from CSV (mac, name, category, owner, note, room, device_type).",
       "fields": {
         "csv": {
           "name": "CSV",

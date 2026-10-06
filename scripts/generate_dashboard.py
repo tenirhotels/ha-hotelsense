@@ -36,6 +36,9 @@ TEXT = {
         "violations": "Возможные нарушения", "no_violations": "Нарушений нет",
         "misplaced": "Оборудование не на своём месте", "expected": "ожидается", "seen": "видно в",
         "view": "Номера",
+        "kinds": "{'phone': 'телефон', 'tablet': 'планшет', 'computer': 'ноутбук/ПК', 'watch': 'часы', "
+                 "'tv': 'ТВ', 'appliance': 'техника', 'printer': 'принтер', 'pos': 'терминал', "
+                 "'personal': 'личное устройство', 'other': 'другое', 'unknown': 'неизвестно'}",
     },
     "en": {
         "states": "{'empty': 'Empty', 'violation': 'VIOLATION', 'staff_visit': 'Staff visit', "
@@ -45,6 +48,9 @@ TEXT = {
         "violations": "Possible violations", "no_violations": "No violations",
         "misplaced": "Equipment out of place", "expected": "expected in", "seen": "seen in",
         "view": "Rooms",
+        "kinds": "{'phone': 'phone', 'tablet': 'tablet', 'computer': 'computer', 'watch': 'watch', "
+                 "'tv': 'TV', 'appliance': 'appliance', 'printer': 'printer', 'pos': 'terminal', "
+                 "'personal': 'personal device', 'other': 'other', 'unknown': 'unknown'}",
     },
 }
 ALERT_KINDS = (
@@ -71,7 +77,12 @@ def room_card(area_id: str, lang: str = "ru") -> str:
 {{%- set f = states('sensor.{area_id}_fixed_devices') -%}}
 {{%- set label = {t["states"]}.get(st, st) -%}}
 {{%- set kind = {ALERT_KINDS}.get(st) -%}}
-{{%- set line = '{t["guests"]}: ' ~ g ~ ' · {t["staff"]}: ' ~ e ~ ' · {t["fixed"]}: ' ~ f -%}}
+{{%- set gt = state_attr('sensor.{area_id}_guest_devices', 'types') or {{}} -%}}
+{{%- set kinds = {t["kinds"]} -%}}
+{{%- set ns = namespace(p=[]) -%}}
+{{%- for k, n in gt.items() %}}{{% set ns.p = ns.p + [kinds.get(k, k) ~ ' ×' ~ n] %}}{{% endfor -%}}
+{{%- set gtxt = ' (' ~ ns.p | join(', ') ~ ')' if ns.p else '' -%}}
+{{%- set line = '{t["guests"]}: ' ~ g ~ gtxt ~ ' · {t["staff"]}: ' ~ e ~ ' · {t["fixed"]}: ' ~ f -%}}
 {{% if kind %}}<ha-alert alert-type="{{{{ kind }}}}" title="{title} — {{{{ label }}}}">{{{{ line }}}}</ha-alert>
 {{% else %}}**{title}** — {{{{ label }}}}<br>{{{{ line }}}}
 {{% endif %}}
