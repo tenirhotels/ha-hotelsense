@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import State
 from homeassistant.data_entry_flow import FlowResultType
@@ -145,9 +146,9 @@ async def test_room_entities_are_created_with_predictable_ids(hass, make_entry, 
     assert dev.area_id == area.id and dev.name == "Room 06"
 
 
-async def test_vacant_room_with_guest_is_a_violation(hass, make_entry, patch_api):
+async def test_checked_out_room_with_guest_is_a_violation(hass, make_entry, patch_api):
     await _hotel(hass, make_entry())
-    assert _state(hass, "select.room_06_status") == "vacant"   # default
+    assert _state(hass, "select.room_06_status") == "checked_out"   # default
     assert _state(hass, "sensor.room_06_guest_devices") == "2"   # phone + SHARED_MAC client
     assert _state(hass, "binary_sensor.room_06_guest_presence") == "on"
     assert _state(hass, "sensor.room_06_state") == "violation"
@@ -164,9 +165,8 @@ async def test_vacant_room_with_guest_is_a_violation(hass, make_entry, patch_api
 
 async def test_room_status_changes_the_verdict(hass, make_entry, patch_api):
     await _hotel(hass, make_entry())
-    for status, expected, violation in (("sold", "sold", "off"),
-                                        ("cleaning", "cleaning_not_started", "off"),
-                                        ("vacant", "violation", "on")):
+    for status, expected, violation in (("checked_in", "checked_in", "off"),
+                                        ("checked_out", "violation", "on")):
         await hass.services.async_call("select", "select_option", {
             "entity_id": "select.room_06_status", "option": status}, blocking=True)
         await hass.async_block_till_done()
@@ -194,14 +194,14 @@ async def test_fixed_and_employee_devices_are_classified(hass, make_entry, patch
     assert names == ["Maid phone"]
 
     await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "cleaning"}, blocking=True)
+        "entity_id": "select.room_06_status", "option": "checked_in"}, blocking=True)
     await hass.async_block_till_done()
-    assert _state(hass, "sensor.room_06_state") == "cleaning_in_progress"
+    assert _state(hass, "sensor.room_06_state") == "checked_in"
 
-    # Only fixed equipment left in a vacant room: normal.
+    # Only fixed equipment left in a checked-out room: normal.
     await _import(hass, f"mac,category\n{SHARED_MAC},fixed\n")
     await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "vacant"}, blocking=True)
+        "entity_id": "select.room_06_status", "option": "checked_out"}, blocking=True)
     await _poll(hass, controller)
     assert _state(hass, "sensor.room_06_state") == "empty"
 
@@ -283,18 +283,28 @@ async def test_room_state_change_fires_event(hass, make_entry, patch_api):
     events = []
     hass.bus.async_listen(EVENT_ROOM_STATE_CHANGED, events.append)
     await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "sold"}, blocking=True)
+        "entity_id": "select.room_06_status", "option": "checked_in"}, blocking=True)
     await hass.async_block_till_done()
     assert len(events) == 1
     data = events[0].data
-    assert (data["room"], data["old_state"], data["new_state"]) == ("Room 06", "violation", "sold")
+    assert (data["room"], data["old_state"], data["new_state"]) == ("Room 06", "violation", "checked_in")
 
 
 async def test_room_status_is_restored_after_restart(hass, make_entry, patch_api):
-    mock_restore_cache(hass, [State("select.room_06_status", "sold")])
+    mock_restore_cache(hass, [State("select.room_06_status", "checked_in")])
     await _hotel(hass, make_entry())
-    assert _state(hass, "select.room_06_status") == "sold"
-    assert _state(hass, "sensor.room_06_state") == "sold"
+    assert _state(hass, "select.room_06_status") == "checked_in"
+    assert _state(hass, "sensor.room_06_state") == "checked_in"
+
+
+@pytest.mark.parametrize(("saved", "expected"), [
+    ("sold", "checked_in"), ("vacant", "checked_out"), ("cleaning", "checked_out"),
+    ("garbage", "checked_out"),
+])
+async def test_statuses_saved_by_0_2_0_are_migrated(hass, make_entry, patch_api, saved, expected):
+    mock_restore_cache(hass, [State("select.room_06_status", saved)])
+    await _hotel(hass, make_entry())
+    assert _state(hass, "select.room_06_status") == expected
 
 
 async def test_common_area_has_presence_but_no_status_or_violation(hass, make_entry, patch_api):

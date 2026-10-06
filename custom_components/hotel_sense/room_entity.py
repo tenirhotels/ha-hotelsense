@@ -22,7 +22,8 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
 from .ids import make_room_unique_id
-from .presence import ROOM_STATES, STATE_VIOLATION, STATUS_VACANT, STATUSES
+from .presence import (LEGACY_STATUSES, ROOM_STATES, STATE_VIOLATION, STATUS_CHECKED_OUT,
+                       STATUSES)
 from .presence_manager import PresenceManager, RoomSnapshot
 
 MANUFACTURER = "Hotel Sense"
@@ -219,7 +220,7 @@ class MisplacedFixedDevicesSensor(SensorEntity):
 
 
 # --------------------------------------------------------------------------- #
-# select: manual room status (until the Exely PMS integration, Stage D)
+# select: room status, Exely check-in / check-out (manual until the webhook)
 # --------------------------------------------------------------------------- #
 class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
     _platform_domain = "select"
@@ -231,7 +232,9 @@ class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        status = last.state if last and last.state in STATUSES else STATUS_VACANT
+        status = LEGACY_STATUSES.get(last.state, last.state) if last else None
+        if status not in STATUSES:
+            status = STATUS_CHECKED_OUT
         self.manager.async_set_status(self.area_id, status)
 
     @property

@@ -1,4 +1,4 @@
-"""Select platform: manual room status (Свободен / Продан / Уборка)."""
+"""Select platform: room status, Exely check-in / check-out (manual until the webhook)."""
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry

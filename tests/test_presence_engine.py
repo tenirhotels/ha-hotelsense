@@ -5,8 +5,8 @@ import pytest
 
 from custom_components.hotel_sense.device_list import CATEGORY_EMPLOYEE, CATEGORY_FIXED
 from custom_components.hotel_sense.presence import (
-    STATE_CLEANING_IN_PROGRESS, STATE_CLEANING_NOT_STARTED, STATE_EMPTY, STATE_SOLD,
-    STATE_STAFF_VISIT, STATE_VIOLATION, STATUS_CLEANING, STATUS_SOLD, STATUS_VACANT,
+    STATE_CHECKED_IN, STATE_EMPTY, STATE_STAFF_VISIT, STATE_VIOLATION, STATUS_CHECKED_IN,
+    STATUS_CHECKED_OUT,
     AreaPresence, Observation, PresenceEngine, evaluate_room,
 )
 
@@ -122,21 +122,18 @@ def _p(guest=0, employee=0, fixed=0) -> AreaPresence:
 
 
 @pytest.mark.parametrize(("status", "presence", "expected"), [
-    # Свободен
-    (STATUS_VACANT, _p(guest=1), STATE_VIOLATION),
-    (STATUS_VACANT, _p(guest=1, employee=1), STATE_VIOLATION),
-    (STATUS_VACANT, _p(employee=1), STATE_STAFF_VISIT),
-    (STATUS_VACANT, _p(employee=1, fixed=2), STATE_STAFF_VISIT),
-    (STATUS_VACANT, _p(fixed=2), STATE_EMPTY),
-    (STATUS_VACANT, _p(), STATE_EMPTY),
+    # Checked out
+    (STATUS_CHECKED_OUT, _p(guest=1), STATE_VIOLATION),
+    (STATUS_CHECKED_OUT, _p(guest=1, employee=1), STATE_VIOLATION),
+    (STATUS_CHECKED_OUT, _p(employee=1), STATE_STAFF_VISIT),
+    (STATUS_CHECKED_OUT, _p(employee=1, fixed=2), STATE_STAFF_VISIT),
+    (STATUS_CHECKED_OUT, _p(fixed=2), STATE_EMPTY),
+    (STATUS_CHECKED_OUT, _p(), STATE_EMPTY),
     (None, _p(guest=1), STATE_VIOLATION),          # status not set yet: alert
-    # Продан
-    (STATUS_SOLD, _p(guest=3), STATE_SOLD),
-    (STATUS_SOLD, _p(), STATE_SOLD),
-    # Уборка
-    (STATUS_CLEANING, _p(), STATE_CLEANING_NOT_STARTED),
-    (STATUS_CLEANING, _p(guest=1, fixed=1), STATE_CLEANING_NOT_STARTED),
-    (STATUS_CLEANING, _p(employee=1), STATE_CLEANING_IN_PROGRESS),
+    # Checked in
+    (STATUS_CHECKED_IN, _p(guest=3), STATE_CHECKED_IN),
+    (STATUS_CHECKED_IN, _p(employee=1), STATE_CHECKED_IN),
+    (STATUS_CHECKED_IN, _p(), STATE_CHECKED_IN),
 ])
 def test_violation_rules(status, presence, expected):
     assert evaluate_room(status, presence) == expected

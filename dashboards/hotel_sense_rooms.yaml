@@ -26,8 +26,8 @@ views:
               {%- set g = states('sensor.room_01_guest_devices') -%}
               {%- set e = states('sensor.room_01_employee_devices') -%}
               {%- set f = states('sensor.room_01_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 01 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 01** — {{ label }}<br>{{ line }}
@@ -49,8 +49,8 @@ views:
               {%- set g = states('sensor.room_02_guest_devices') -%}
               {%- set e = states('sensor.room_02_employee_devices') -%}
               {%- set f = states('sensor.room_02_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 02 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 02** — {{ label }}<br>{{ line }}
@@ -72,8 +72,8 @@ views:
               {%- set g = states('sensor.room_03_guest_devices') -%}
               {%- set e = states('sensor.room_03_employee_devices') -%}
               {%- set f = states('sensor.room_03_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 03 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 03** — {{ label }}<br>{{ line }}
@@ -95,8 +95,8 @@ views:
               {%- set g = states('sensor.room_04_guest_devices') -%}
               {%- set e = states('sensor.room_04_employee_devices') -%}
               {%- set f = states('sensor.room_04_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 04 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 04** — {{ label }}<br>{{ line }}
@@ -118,8 +118,8 @@ views:
               {%- set g = states('sensor.room_05_guest_devices') -%}
               {%- set e = states('sensor.room_05_employee_devices') -%}
               {%- set f = states('sensor.room_05_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 05 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 05** — {{ label }}<br>{{ line }}
@@ -141,8 +141,8 @@ views:
               {%- set g = states('sensor.room_06_guest_devices') -%}
               {%- set e = states('sensor.room_06_employee_devices') -%}
               {%- set f = states('sensor.room_06_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 06 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 06** — {{ label }}<br>{{ line }}
@@ -164,8 +164,8 @@ views:
               {%- set g = states('sensor.room_07_guest_devices') -%}
               {%- set e = states('sensor.room_07_employee_devices') -%}
               {%- set f = states('sensor.room_07_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 07 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 07** — {{ label }}<br>{{ line }}
@@ -187,8 +187,8 @@ views:
               {%- set g = states('sensor.room_08_guest_devices') -%}
               {%- set e = states('sensor.room_08_employee_devices') -%}
               {%- set f = states('sensor.room_08_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 08 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 08** — {{ label }}<br>{{ line }}
@@ -210,8 +210,8 @@ views:
               {%- set g = states('sensor.room_09_guest_devices') -%}
               {%- set e = states('sensor.room_09_employee_devices') -%}
               {%- set f = states('sensor.room_09_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 09 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 09** — {{ label }}<br>{{ line }}
@@ -233,8 +233,8 @@ views:
               {%- set g = states('sensor.room_10_guest_devices') -%}
               {%- set e = states('sensor.room_10_employee_devices') -%}
               {%- set f = states('sensor.room_10_fixed_devices') -%}
-              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', 'cleaning_in_progress': 'Идёт уборка'}.get(st, st) -%}
-              {%- set kind = {'violation': 'error', 'cleaning_not_started': 'warning', 'staff_visit': 'info', 'cleaning_in_progress': 'info'}.get(st) -%}
+              {%- set label = {'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', 'checked_in': 'Гость заселён'}.get(st, st) -%}
+              {%- set kind = {'violation': 'error', 'staff_visit': 'info'}.get(st) -%}
               {%- set line = 'Гости: ' ~ g ~ ' · Сотрудники: ' ~ e ~ ' · Фикс.: ' ~ f -%}
               {% if kind %}<ha-alert alert-type="{{ kind }}" title="Room 10 — {{ label }}">{{ line }}</ha-alert>
               {% else %}**Room 10** — {{ label }}<br>{{ line }}

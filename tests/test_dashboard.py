@@ -12,7 +12,7 @@ from homeassistant.helpers.template import Template
 from custom_components.hotel_sense.const import DOMAIN
 from custom_components.hotel_sense.storage import async_get_device_store
 
-from .fakes import AP_WF06, AP_WF07, GUEST_PHONE
+from .fakes import AP_WF06, AP_WF07, GUEST_PHONE, SHARED_MAC
 from .test_stage_a import _hotel
 
 ROOT = Path(__file__).parent.parent
@@ -74,15 +74,17 @@ async def test_dashboard_renders_and_highlights_violations(hass, make_entry, pat
     await (await async_get_device_store(hass)).async_remove([GUEST_PHONE])
 
     await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "sold"}, blocking=True)
+        "entity_id": "select.room_06_status", "option": "checked_in"}, blocking=True)
     await hass.async_block_till_done()
     summary = Template(cards[0]["content"], hass).async_render(parse_result=False)
     room = Template(cards[2]["content"], hass).async_render(parse_result=False)
     assert "Нарушений нет" in summary
-    assert "ha-alert" not in room and "**Room 06** — Продан" in room
+    assert "ha-alert" not in room and "**Room 06** — Гость заселён" in room
 
     await hass.services.async_call("select", "select_option", {
-        "entity_id": "select.room_06_status", "option": "cleaning"}, blocking=True)
+        "entity_id": "select.room_06_status", "option": "checked_out"}, blocking=True)
+    await (await async_get_device_store(hass)).async_import_csv(
+        f"mac,name,category\n{GUEST_PHONE},Maid,employee\n{SHARED_MAC},AC,fixed\n")
     await hass.async_block_till_done()
     room = Template(cards[2]["content"], hass).async_render(parse_result=False)
-    assert 'alert-type="warning"' in room and "Уборка не началась" in room
+    assert 'alert-type="info"' in room and "Визит сотрудника" in room

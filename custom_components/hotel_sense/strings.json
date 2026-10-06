@@ -198,9 +198,7 @@
           "empty": "Empty",
           "violation": "Violation",
           "staff_visit": "Staff visit",
-          "sold": "Sold",
-          "cleaning_not_started": "Cleaning not started",
-          "cleaning_in_progress": "Cleaning in progress"
+          "checked_in": "Checked in"
         }
       },
       "misplaced_devices": {
@@ -211,9 +209,8 @@
       "room_status": {
         "name": "Status",
         "state": {
-          "vacant": "Vacant",
-          "sold": "Sold",
-          "cleaning": "Cleaning"
+          "checked_in": "Checked in",
+          "checked_out": "Checked out"
         }
       }
     }

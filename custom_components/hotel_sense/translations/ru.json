@@ -203,9 +203,7 @@
           "empty": "Пусто",
           "violation": "Нарушение",
           "staff_visit": "Визит сотрудника",
-          "sold": "Продан",
-          "cleaning_not_started": "Уборка не началась",
-          "cleaning_in_progress": "Идёт уборка"
+          "checked_in": "Гость заселён"
         }
       },
       "misplaced_devices": {
@@ -216,9 +214,8 @@
       "room_status": {
         "name": "Статус",
         "state": {
-          "vacant": "Свободен",
-          "sold": "Продан",
-          "cleaning": "Уборка"
+          "checked_in": "Checked in",
+          "checked_out": "Checked out"
         }
       }
     }

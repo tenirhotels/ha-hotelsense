@@ -9,7 +9,7 @@ Check the IDs under Settings -> Areas if yours differ and pass them:
     python scripts/generate_dashboard.py --rooms room_01 room_02 --common admin_house
 
 Only built-in cards are used (markdown + tile). A violation is a red
-``ha-alert`` box, "cleaning not started" is orange, a staff visit is blue.
+``ha-alert`` box, a staff visit in a checked-out room is blue.
 """
 from __future__ import annotations
 
@@ -21,12 +21,10 @@ DEFAULT_COMMON = ["admin_house"]
 
 STATE_LABELS = (
     "{'empty': 'Пусто', 'violation': 'НАРУШЕНИЕ', 'staff_visit': 'Визит сотрудника', "
-    "'sold': 'Продан', 'cleaning_not_started': 'Уборка не началась', "
-    "'cleaning_in_progress': 'Идёт уборка'}"
+    "'checked_in': 'Гость заселён'}"
 )
 ALERT_KINDS = (
-    "{'violation': 'error', 'cleaning_not_started': 'warning', "
-    "'staff_visit': 'info', 'cleaning_in_progress': 'info'}"
+    "{'violation': 'error', 'staff_visit': 'info'}"
 )
 
 

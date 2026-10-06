@@ -33,23 +33,20 @@ CATEGORY_GUEST = "guest"  # guest or unknown device
 DEFAULT_TIMEOUT = 5 * 60
 DEFAULT_DEBOUNCE = 30
 
-# Room status (set manually for now; from Exely PMS in Stage D).
-STATUS_VACANT = "vacant"      # Свободен
-STATUS_SOLD = "sold"          # Продан
-STATUS_CLEANING = "cleaning"  # Уборка
-STATUSES = (STATUS_VACANT, STATUS_SOLD, STATUS_CLEANING)
+# Room status: Exely PMS check-in / check-out (manual select until the webhook).
+STATUS_CHECKED_IN = "checked_in"
+STATUS_CHECKED_OUT = "checked_out"
+STATUSES = (STATUS_CHECKED_IN, STATUS_CHECKED_OUT)
+# Statuses saved by 0.2.0 (restored select state) -> current status.
+LEGACY_STATUSES = {"vacant": STATUS_CHECKED_OUT, "sold": STATUS_CHECKED_IN,
+                   "cleaning": STATUS_CHECKED_OUT}
 
 # Room state (result of the rules).
-STATE_EMPTY = "empty"                              # vacant, nothing but fixed equipment
-STATE_VIOLATION = "violation"                      # vacant, guest/unknown device inside
-STATE_STAFF_VISIT = "staff_visit"                  # vacant, only employee devices (logged)
-STATE_SOLD = "sold"                                # sold: presence is expected
-STATE_CLEANING_NOT_STARTED = "cleaning_not_started"
-STATE_CLEANING_IN_PROGRESS = "cleaning_in_progress"
-ROOM_STATES = (
-    STATE_EMPTY, STATE_VIOLATION, STATE_STAFF_VISIT, STATE_SOLD,
-    STATE_CLEANING_NOT_STARTED, STATE_CLEANING_IN_PROGRESS,
-)
+STATE_EMPTY = "empty"              # checked out, nothing but fixed equipment
+STATE_VIOLATION = "violation"      # checked out, guest/unknown device inside
+STATE_STAFF_VISIT = "staff_visit"  # checked out, only employee devices (logged)
+STATE_CHECKED_IN = "checked_in"    # guest checked in: presence is expected
+ROOM_STATES = (STATE_EMPTY, STATE_VIOLATION, STATE_STAFF_VISIT, STATE_CHECKED_IN)
 
 
 @dataclass(frozen=True)
@@ -103,12 +100,9 @@ class AreaPresence:
 
 def evaluate_room(status: str | None, presence: AreaPresence) -> str:
     """Apply the violation rules to one room."""
-    if status == STATUS_SOLD:
-        return STATE_SOLD
-    if status == STATUS_CLEANING:
-        return (STATE_CLEANING_IN_PROGRESS if presence.employee_count
-                else STATE_CLEANING_NOT_STARTED)
-    # Vacant (also the fallback for an unknown status: err on the side of alerting).
+    if status == STATUS_CHECKED_IN:
+        return STATE_CHECKED_IN
+    # Checked out (also the fallback for an unknown status: err on the side of alerting).
     if presence.guest_count:
         return STATE_VIOLATION
     if presence.employee_count:

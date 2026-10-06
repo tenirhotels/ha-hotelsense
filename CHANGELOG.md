@@ -1,4 +1,5 @@
 # Hotel Sense (unreleased)
+- Room status is now Exely check-in / check-out: `checked_in` / `checked_out` (saved 0.2.0 statuses migrate: sold -> checked_in, vacant/cleaning -> checked_out); cleaning states removed
 - Device list: separate `room` column (where equipment is installed); `note` for department/role
 - `sensor.hotel_sense_misplaced_devices`: fixed devices seen outside their `room`, warning on the dashboard
 

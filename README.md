@@ -59,7 +59,7 @@ and entities.
 
 | Entity | Meaning |
 |---|---|
-| `select.room_01_status` | Manual status: Свободен (`vacant`) / Продан (`sold`) / Уборка (`cleaning`); restored after restart. Replaced by Exely in Stage D |
+| `select.room_01_status` | Room status: `checked_in` / `checked_out`; manual for now, set by the Exely PMS check-in/check-out webhook in Stage D; restored after restart |
 | `binary_sensor.room_01_guest_presence` | Guest or unknown Wi-Fi device in the room |
 | `binary_sensor.room_01_employee_presence` | Employee device in the room |
 | `binary_sensor.room_01_violation` | Possible violation (red on the dashboard) |
@@ -73,12 +73,13 @@ Common areas (Admin House) get only presence and counts.
 
 | Status | Seen | `sensor.*_state` |
 |---|---|---|
-| Свободен | guest / unknown device | `violation` (red) |
-| Свободен | only employee devices | `staff_visit` (not a violation; in the logbook) |
-| Свободен | only fixed devices / nothing | `empty` |
-| Продан | anything | `sold` |
-| Уборка | no employee device | `cleaning_not_started` (orange) |
-| Уборка | employee device | `cleaning_in_progress` |
+| Checked out | guest / unknown device | `violation` (red) |
+| Checked out | only employee devices | `staff_visit` (not a violation; in the logbook) |
+| Checked out | only fixed devices / nothing | `empty` |
+| Checked in | anything | `checked_in` |
+
+Cleaning is not a status: it will be derived from staff presence (Stage C) and,
+later, compared with the housekeeping status from Exely.
 
 Every change of a room state also fires the `hotel_sense_room_state_changed` event.
 
