@@ -114,7 +114,8 @@
           "name": "Название",
           "category": "Категория",
           "owner": "Владелец (сотрудник)",
-          "note": "Примечание"
+          "note": "Примечание (отдел / роль)",
+          "room": "Помещение (где установлено)"
         }
       },
       "device_edit_select": {
@@ -130,7 +131,8 @@
           "name": "Название",
           "category": "Категория",
           "owner": "Владелец (сотрудник)",
-          "note": "Примечание"
+          "note": "Примечание (отдел / роль)",
+          "room": "Помещение (где установлено)"
         }
       },
       "device_delete": {
@@ -141,7 +143,7 @@
       },
       "device_import": {
         "title": "Импорт CSV",
-        "description": "Колонки: mac, name, category (fixed/employee), owner, note. MAC в любом формате. Разделитель — запятая или точка с запятой.\n{result}",
+        "description": "Колонки: mac, name, category (fixed/employee), owner, note, room. MAC в любом формате. Разделитель — запятая или точка с запятой.\n{result}",
         "data": {
           "csv": "CSV",
           "default_category": "Категория для строк без категории",
@@ -261,7 +263,7 @@
     },
     "import_devices": {
       "name": "Импорт устройств",
-      "description": "Импорт фиксированных устройств и устройств сотрудников из CSV (mac, name, category, owner, note).",
+      "description": "Импорт фиксированных устройств и устройств сотрудников из CSV (mac, name, category, owner, note, room).",
       "fields": {
         "csv": {
           "name": "CSV",

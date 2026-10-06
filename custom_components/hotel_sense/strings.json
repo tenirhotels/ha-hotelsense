@@ -109,7 +109,8 @@
           "name": "Name",
           "category": "Category",
           "owner": "Owner (employee)",
-          "note": "Note"
+          "note": "Note (department / role)",
+          "room": "Room (where installed)"
         }
       },
       "device_edit_select": {
@@ -125,7 +126,8 @@
           "name": "Name",
           "category": "Category",
           "owner": "Owner (employee)",
-          "note": "Note"
+          "note": "Note (department / role)",
+          "room": "Room (where installed)"
         }
       },
       "device_delete": {
@@ -136,7 +138,7 @@
       },
       "device_import": {
         "title": "Import CSV",
-        "description": "Columns: mac, name, category (fixed/employee), owner, note. Any MAC notation is accepted. Comma or semicolon separated.\n{result}",
+        "description": "Columns: mac, name, category (fixed/employee), owner, note, room. Any MAC notation is accepted. Comma or semicolon separated.\n{result}",
         "data": {
           "csv": "CSV",
           "default_category": "Category for rows without one",
@@ -256,7 +258,7 @@
     },
     "import_devices": {
       "name": "Import devices",
-      "description": "Imports fixed/employee devices from CSV (mac, name, category, owner, note).",
+      "description": "Imports fixed/employee devices from CSV (mac, name, category, owner, note, room).",
       "fields": {
         "csv": {
           "name": "CSV",
