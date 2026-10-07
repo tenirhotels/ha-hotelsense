@@ -1,3 +1,11 @@
+# Hotel Sense 0.9.1
+- Room status: the same status with a new source, booking or user (e.g. manual check-in, then Exely confirms it with the booking) now updates them; `changed_at` stays the time the status itself changed, and no new history row is written for it (it used to be ignored)
+- Room model: `exely_room_name` next to `exely_room_ids` (the PMS roomIds); labels entered before stay in `exely_room_ids` unchanged and keep matching. Storage minor version 2, migrated in place (labels normalised: strings, no empties, no duplicates, order kept)
+- Exely room resolution: roomId → Exely room name → explicit mapping → HA Area → room number (last resort, logged)
+- Rooms CSV gets the `exely_room_name` column (5-column CSVs still import); `name` is read only - HA's Area owns it
+- The room snapshot keeps only presence and state; name, kind and status are read from the room model
+- The common areas of the old option stop steering new Areas once they all exist; reading the room kinds in the presence settings no longer creates rooms
+
 # Hotel Sense 0.9.0
 - History database interface: SQL views `v1_*` (rooms, room status, room states, violations with start / end, presence, staff visits, traffic hourly / daily, Exely events, Wi-Fi events). Grafana and reports read the views, not the tables; a change of meaning gets `v2_*`. Schema version 3: the `rooms` table (number, name, kind of the room model) and the views are created automatically
 - Business queries (`queries.py`) on the views, and the actions `hotel_sense.room_report` (one room: status and state changes, violations, presence and time per category, staff visits, traffic) and `hotel_sense.hotel_report` (per room: violations, status changes, staff time, guest traffic) for a period (`hours`, or `start` / `end`)

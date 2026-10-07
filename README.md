@@ -138,13 +138,15 @@ keeps its own record of it (the Area is how HA shows it):
 | `room_id` | = the area ID (entity IDs and the history use it) |
 | `kind` | `room` (status, violations) or `common` (presence only) |
 | `number` | room number for reports (from the Area name, editable) |
-| `exely_room_ids` | the room's Exely roomId and / or Exely room name |
+| `exely_room_ids` | the room's Exely PMS roomIds (labels from older versions stay here) |
+| `exely_room_name` | the room's name in Exely |
 | `status` | `value`, `source` (manual / exely / restored), `changed_at` (UTC), `booking`, `user_id` |
 
 The last status change wins, whatever its source; every change is also in the
 history database. The access points of a room are those in its Area. *Rooms*
-in the options edits all rooms as CSV (`room_id;name;number;kind;exely_room_ids`);
+in the options edits all rooms as CSV (`room_id;name;number;kind;exely_room_ids;exely_room_name`);
 *Room presence → common areas* and the *Exely room mapping* edit the same model.
+The name is the HA Area's (rename the Area); it is read only in the CSV.
 
 ### Entities per room (`room_01` = HA area ID)
 

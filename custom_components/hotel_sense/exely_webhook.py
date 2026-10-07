@@ -250,18 +250,29 @@ class ExelyReceiver:
         """Exely room label -> area_id of a hotel room (not a common area)."""
         rooms = {a: r for a, r in self.manager.rooms.items() if not r.is_common}
         registry = self.manager.registry
-        if (room := registry.find_by_exely_label(label)) is not None:
-            # Explicit mapping (room model): a common area is not a hotel room.
-            return room.room_id if room.room_id in rooms else None
+        # 1. Exely roomId, 2. Exely room name (room model; a common area is no room).
+        for find in (registry.find_by_exely_id, registry.find_by_exely_name):
+            if (room := find(label)) is not None:
+                return room.room_id if room.room_id in rooms else None
+        # 3. explicit mapping to a room that does not exist (yet): do not guess.
         if registry.is_pending_label(label):
-            return None  # mapped to a room that does not exist: do not guess
+            return None
+        # 4. HA Area id / name.
         areas = ar.async_get(self.hass)
         area = areas.async_get_area(label) or areas.async_get_area_by_name(label)
         if area and area.id in rooms:
             return area.id
+        # 5. Room number, last resort (only when exactly one room has it).
         number = room_number(label)
-        matches = [a for a, r in rooms.items() if number is not None and room_number(r.name) == number]
-        return matches[0] if len(matches) == 1 else None
+        if number is None:
+            return None
+        matches = [a for a, r in rooms.items()
+                   if room_number((r.room.number if r.room else None) or r.name) == number]
+        if len(matches) == 1:
+            LOGGER.info("Exely room %r matched to %s by its number only (no Exely mapping)",
+                        label, matches[0])
+            return matches[0]
+        return None
 
     @callback
     def _apply(self, parsed: ExelyEvent) -> dict:
