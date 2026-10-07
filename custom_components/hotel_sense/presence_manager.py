@@ -21,7 +21,9 @@ from .const import (
 from .device_kind import resolve_kind
 from .device_list import CATEGORY_FIXED
 from .history import now as history_now
-from .rooms import RoomRegistry, StatusValue
+from .rooms import (
+    KIND_COMMON, STATUS_METADATA_CHANGED, HotelRoom, RoomRegistry, StatusValue, default_kind,
+)
 from .presence import CATEGORY_GUEST, AreaPresence, Observation, PresenceEngine, evaluate_room
 from .storage import DeviceListStore
 from .traffic import TrafficMeter
@@ -32,12 +34,41 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class RoomSnapshot:
-    area_id: str
-    name: str
-    is_common: bool
+    """Runtime picture of a room: presence and the resulting state.
+
+    Name, kind and status are read from the room model (``HotelRoom``, the
+    source of truth); the properties keep the attribute names entities use.
+    """
+
+    room_id: str
+    registry: RoomRegistry = field(repr=False)
     presence: AreaPresence = field(default_factory=AreaPresence)
-    status: str | None = None
     state: str | None = None  # None for common areas
+
+    @property
+    def room(self) -> HotelRoom | None:
+        return self.registry.get(self.room_id)
+
+    @property
+    def area_id(self) -> str:
+        """HA Area binding (= room_id for now): presence and entity IDs use it."""
+        room = self.room
+        return room.area_id if room and room.area_id else self.room_id
+
+    @property
+    def name(self) -> str:
+        room = self.room
+        return room.name if room else self.room_id
+
+    @property
+    def is_common(self) -> bool:
+        room = self.room
+        return bool(room and room.is_common)
+
+    @property
+    def status(self) -> str | None:
+        room = self.room
+        return room.status.value if room and room.status else None
 
 
 class PresenceManager:
@@ -50,6 +81,8 @@ class PresenceManager:
         # The room model (kind, number, Exely labels, status with its origin);
         # RoomSnapshot below is the live picture of a room.
         self.registry = registry
+        self._room_rows: list[dict] | None = None
+        registry.async_add_listener(self._sync_rooms)
         self.engine = PresenceEngine()
         self.rooms: dict[str, RoomSnapshot] = {}
         self.data_stale = False
@@ -98,6 +131,7 @@ class PresenceManager:
         for unsub in unsubs:
             self.entry.async_on_unload(unsub)
         self.async_process()
+        self._sync_rooms()
 
     @callback
     def _async_options_updated(self) -> None:
@@ -106,7 +140,9 @@ class PresenceManager:
 
     # -- processing ------------------------------------------------------- #
     def is_common_area(self, area_id: str, name: str) -> bool:
-        return self.registry.ensure(area_id, name).is_common
+        """Kind of a room, or the default for an Area not seen yet (no side effect)."""
+        room = self.registry.get(area_id)
+        return room.is_common if room else default_kind(name) == KIND_COMMON
 
     def status_of(self, area_id: str) -> StatusValue | None:
         room = self.registry.get(area_id)
@@ -138,12 +174,23 @@ class PresenceManager:
                 continue
             if (area := areas.async_get_area(area_id)) is None:
                 continue
-            self.rooms[area_id] = RoomSnapshot(area_id, area.name,
-                                               self.is_common_area(area_id, area.name))
+            room = self.registry.ensure(area_id, area.name)  # room_id == area_id for now
+            self.rooms[room.room_id] = RoomSnapshot(room.room_id, self.registry)
             new.append(area_id)
         if new:
             async_dispatcher_send(self.hass, self.signal_rooms_added, new)
         self.async_refresh()
+
+    # -- history: the room model as the ``rooms`` table ---------------------- #
+    @callback
+    def _sync_rooms(self) -> None:
+        """Write the room model to the database when number / name / kind changed."""
+        if self.history is None:
+            return
+        rows = self.registry.table_rows()
+        if rows != self._room_rows:
+            self._room_rows = rows
+            self.history.set_rooms(rows)
 
     # -- history: device in room from ... to ... ---------------------------- #
     def _update_sessions(self) -> None:
@@ -200,11 +247,8 @@ class PresenceManager:
         areas = ar.async_get(self.hass)
         for room in self.rooms.values():
             if area := areas.async_get_area(room.area_id):
-                room.name = area.name
-            room.is_common = self.is_common_area(room.area_id, room.name)
+                self.registry.ensure(room.room_id, area.name)  # HA owns the name
             room.presence = by_area.get(room.area_id, AreaPresence())
-            status = self.status_of(room.area_id)
-            room.status = status.value if status else None
             old = room.state
             room.state = None if room.is_common else evaluate_room(room.status, room.presence)
             if old is not None and room.state is not None and old != room.state:
@@ -235,9 +279,14 @@ class PresenceManager:
         """
         if source != STATUS_SOURCE_RESTORED:
             changed_at = None
-        if not self.registry.set_status(area_id, status, source, changed_at=changed_at,
-                                        booking=booking, user_id=user_id,
-                                        stamp=source != STATUS_SOURCE_RESTORED):
+        changed = self.registry.set_status(area_id, status, source, changed_at=changed_at,
+                                           booking=booking, user_id=user_id,
+                                           stamp=source != STATUS_SOURCE_RESTORED)
+        if changed is None:
+            return
+        if changed == STATUS_METADATA_CHANGED:
+            # Same status, new source / booking / user: not a transition - no history row.
+            async_dispatcher_send(self.hass, self.signal_presence)
             return
         if source != STATUS_SOURCE_RESTORED and self.history is not None:
             self.history.add("room_status", area_id=area_id, status=status, source=source,

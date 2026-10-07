@@ -4,15 +4,21 @@ A ``HotelRoom`` is keyed by ``room_id`` (= the HA area_id it was created for,
 so entity unique IDs and the history keep working) and holds what Hotel Sense
 knows about the room:
 
+* ``name``: the HA Area's name (HA owns it: rename the Area to rename the room);
 * ``kind``: ``room`` (status, violations) or ``common`` (presence only);
 * ``number``: "01" (taken from the Area name, editable);
-* ``exely_room_ids``: Exely labels of the room - roomId and / or room name;
+* ``exely_room_ids``: the room's Exely PMS roomIds. Labels entered before 0.9.1
+  (roomIds or room names, mixed) stay here unchanged and keep matching;
+* ``exely_room_name``: the room's name in Exely;
 * ``status``: the current check-in status *with its origin*
   (value, source, changed_at, booking, user_id). The last change wins,
-  whatever its source; the full history is in the history database.
+  whatever its source; ``changed_at`` is when the *value* last changed. The
+  full history is in the history database.
 
-The access points of a room still come from its HA Area (where HA shows and
-edits them), so there is one place for that mapping.
+``room_id`` is the domain identity, ``area_id`` the binding to the HA Area;
+for now they are equal (entity unique IDs and the history use the area id).
+The access points of a room come from its HA Area (where HA shows and edits
+them), so there is one place for that mapping.
 
 Stored per config entry in ``.storage/hotel_sense.rooms.<entry_id>``. Before
 0.8 the room kinds were the ``common_areas`` option and the Exely labels the
@@ -23,6 +29,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import logging
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
@@ -32,18 +39,31 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 
+LOGGER = logging.getLogger(__name__)
+
 STORAGE_VERSION = 1
+STORAGE_MINOR_VERSION = 2  # 2: exely_room_name, normalised exely_room_ids
 SAVE_DELAY = 5  # seconds: a burst of changes is one write
 
 KIND_ROOM = "room"
 KIND_COMMON = "common"
 KINDS = (KIND_ROOM, KIND_COMMON)
 
-CSV_FIELDS = ("room_id", "name", "number", "kind", "exely_room_ids")
+# ``name`` is exported for reading only (HA's Area owns it); ``exely_room_name``
+# was added in 0.9.1 at the end, so 5-column CSVs still import.
+CSV_FIELDS = ("room_id", "name", "number", "kind", "exely_room_ids", "exely_room_name")
+
+# Result of RoomRegistry.set_status()
+STATUS_VALUE_CHANGED = "value"        # the status itself changed (a transition)
+STATUS_METADATA_CHANGED = "metadata"  # same status, new source / booking / user
 _ROOM_NAME = re.compile(r"^\s*(room|номер)\b", re.IGNORECASE)
 
 
 def default_kind(name: str) -> str:
+    """Kind of a newly seen Area. Existing rooms keep their stored, explicit kind.
+
+    Next migration step: make the kind always explicit (no guess from the name).
+    """
     return KIND_ROOM if _ROOM_NAME.match(name or "") else KIND_COMMON
 
 
@@ -54,6 +74,30 @@ def default_number(name: str) -> str | None:
 
 def _norm(label: str) -> str:
     return str(label).strip().lower()
+
+
+def clean_labels(values) -> list[str]:
+    """Strings, stripped, no empties, no duplicates, order kept (nothing else dropped)."""
+    result: list[str] = []
+    for value in values or []:
+        if value is None or isinstance(value, (dict, list)):
+            continue
+        text = str(value).strip()
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+class _RoomStore(Store[dict]):
+    async def _async_migrate_func(self, old_major_version: int, old_minor_version: int,
+                                  old_data: dict) -> dict:
+        if old_minor_version < 2:
+            # 0.8 -> 0.9.1: new exely_room_name; existing labels are kept as they are
+            # (they may be roomIds or names - not guessed), only normalised.
+            for room in old_data.get("rooms", []):
+                room["exely_room_ids"] = clean_labels(room.get("exely_room_ids"))
+                room.setdefault("exely_room_name", None)
+        return old_data
 
 
 @dataclass(frozen=True)
@@ -81,8 +125,12 @@ class HotelRoom:
     name: str
     kind: str = KIND_ROOM
     number: str | None = None
+    # HA binding (= room_id for now)
     area_id: str | None = None
+    # Exely
     exely_room_ids: list[str] = field(default_factory=list)
+    exely_room_name: str | None = None
+    # current operational status
     status: StatusValue | None = None
 
     @property
@@ -99,18 +147,21 @@ class HotelRoom:
         return cls(room_id=data["room_id"], name=data.get("name") or data["room_id"],
                    kind=data.get("kind") if data.get("kind") in KINDS else KIND_ROOM,
                    number=data.get("number"), area_id=data.get("area_id", data["room_id"]),
-                   exely_room_ids=[str(x) for x in data.get("exely_room_ids") or []],
+                   exely_room_ids=clean_labels(data.get("exely_room_ids")),
+                   exely_room_name=(str(data.get("exely_room_name") or "").strip() or None),
                    status=StatusValue.from_dict(data.get("status")))
 
 
 class RoomRegistry:
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
-        self._store: Store[dict] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.rooms.{entry_id}")
+        self._store: Store[dict] = _RoomStore(hass, STORAGE_VERSION, f"{DOMAIN}.rooms.{entry_id}",
+                                              minor_version=STORAGE_MINOR_VERSION)
         self.rooms: dict[str, HotelRoom] = {}
         # Before a room exists: legacy common areas / Exely labels waiting for it.
         self._pending_common: set[str] | None = None
         self._pending_labels: dict[str, str] = {}  # label -> target (area id or name)
         self.loaded_from_storage = False
+        self._listeners: list = []
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -129,6 +180,17 @@ class RoomRegistry:
 
     def async_save(self) -> None:
         self._store.async_delay_save(self._data, SAVE_DELAY)
+        for listener in list(self._listeners):
+            listener()
+
+    def async_add_listener(self, listener) -> None:
+        """Called after every change (rooms, kinds, labels, statuses)."""
+        self._listeners.append(listener)
+
+    def table_rows(self) -> list[dict]:
+        """The rooms as rows of the history ``rooms`` table."""
+        return [{"room_id": r.room_id, "number": r.number, "name": r.name, "kind": r.kind}
+                for r in sorted(self.rooms.values(), key=lambda r: r.room_id)]
 
     async def async_flush(self) -> None:
         """Write now (entry unload: the next setup reads the file)."""
@@ -166,6 +228,8 @@ class RoomRegistry:
             room = HotelRoom(room_id=area_id, name=name, kind=kind,
                              number=default_number(name), area_id=area_id)
             self.rooms[area_id] = room
+            if self._pending_common is not None and self._pending_common <= set(self.rooms):
+                self._pending_common = None  # every common area of the old option exists
             for label, target in list(self._pending_labels.items()):
                 if _norm(target) in (_norm(area_id), _norm(name)):
                     room.exely_room_ids.append(label)
@@ -183,29 +247,48 @@ class RoomRegistry:
         """An Exely label mapped to a room that does not exist (yet)."""
         return _norm(label) in self._pending_labels
 
-    def find_by_exely_label(self, label: str) -> HotelRoom | None:
+    def find_by_exely_id(self, label: str) -> HotelRoom | None:
+        """Exact (case-insensitive) match on exely_room_ids (incl. labels from before 0.9.1)."""
         label = _norm(label)
         return next((r for r in self.rooms.values()
                      if label in (_norm(x) for x in r.exely_room_ids)), None)
 
+    def find_by_exely_name(self, label: str) -> HotelRoom | None:
+        label = _norm(label)
+        return next((r for r in self.rooms.values()
+                     if r.exely_room_name and _norm(r.exely_room_name) == label), None)
+
+    def find_by_exely_label(self, label: str) -> HotelRoom | None:
+        return self.find_by_exely_id(label) or self.find_by_exely_name(label)
+
     # -- status ------------------------------------------------------------- #
     def set_status(self, room_id: str, value: str, source: str, *, changed_at: str | None = None,
                    booking: str | None = None, user_id: str | None = None,
-                   stamp: bool = True) -> bool:
-        """Last change wins. Returns False if the value did not change.
+                   stamp: bool = True) -> str | None:
+        """Last change wins.
 
-        ``changed_at`` defaults to now; with ``stamp=False`` (a status carried over
-        from before 0.8) an unknown time stays unknown.
+        Returns ``STATUS_VALUE_CHANGED`` (new value: ``changed_at`` = now or the
+        given time), ``STATUS_METADATA_CHANGED`` (same value, other source /
+        booking / user: ``changed_at`` is kept - it is when the value changed) or
+        None (identical, or unknown room). With ``stamp=False`` (a status carried
+        over from before 0.8) an unknown time stays unknown.
         """
         room = self.rooms.get(room_id)
-        if room is None or (room.status is not None and room.status.value == value):
-            return False
+        if room is None:
+            return None
+        old = room.status
+        if old is not None and old.value == value:
+            if (old.source, old.booking, old.user_id) == (source, booking, user_id):
+                return None
+            room.status = replace(old, source=source, booking=booking, user_id=user_id)
+            self.async_save()
+            return STATUS_METADATA_CHANGED
         if changed_at is None and stamp:
             changed_at = dt_util.utcnow().isoformat()
         room.status = StatusValue(value=value, source=source, changed_at=changed_at,
                                   booking=booking, user_id=user_id)
         self.async_save()
-        return True
+        return STATUS_VALUE_CHANGED
 
     def set_kinds(self, common: set[str]) -> bool:
         """Room kinds from a set of common room_ids. Returns True if any changed."""
@@ -241,7 +324,7 @@ class RoomRegistry:
         writer.writerow(CSV_FIELDS)
         for room in sorted(self.rooms.values(), key=lambda r: r.name):
             writer.writerow([room.room_id, room.name, room.number or "", room.kind,
-                             ", ".join(room.exely_room_ids)])
+                             ", ".join(room.exely_room_ids), room.exely_room_name or ""])
         return out.getvalue()
 
     def import_csv(self, text: str) -> tuple[list[str], bool]:
@@ -255,7 +338,8 @@ class RoomRegistry:
             if not any(c.strip() for c in row):
                 continue
             row = [c.strip() for c in row] + [""] * (len(CSV_FIELDS) - len(row))
-            room_id, _name, number, kind, labels = row[:5]
+            # name: read only (the HA Area's name) - ignored here.
+            room_id, _name, number, kind, labels, exely_name = row[:6]
             room = self.rooms.get(room_id)
             if room is None:
                 errors.append(f"line {line_no}: unknown room_id {room_id!r}")
@@ -266,10 +350,12 @@ class RoomRegistry:
                 continue
             updates[room_id] = replace(
                 room, number=number or None, kind=kind,
-                exely_room_ids=[x.strip() for x in labels.split(",") if x.strip()])
+                exely_room_ids=clean_labels(labels.split(",")),
+                exely_room_name=exely_name or None)
         seen: dict[str, str] = {}
         for room in {**self.rooms, **updates}.values():
-            for label in room.exely_room_ids:
+            for label in room.exely_room_ids + ([room.exely_room_name]
+                                                if room.exely_room_name else []):
                 if (other := seen.setdefault(_norm(label), room.room_id)) != room.room_id:
                     errors.append(f"Exely label {label!r} is on {other} and {room.room_id}")
         if errors:

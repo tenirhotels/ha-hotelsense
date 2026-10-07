@@ -342,6 +342,12 @@ def test_existing_database_gets_new_tables(tmp_path):
     engine = create_engine(url)
     with engine.connect() as conn:
         versions = [r[0] for r in conn.execute(select(history.schema_version.c.version))]
-        assert sorted(versions) == [1, 2]
+        assert sorted(versions) == [1, history.SCHEMA_VERSION]
         assert conn.execute(select(func.count()).select_from(history.room_traffic)).scalar() == 0
+        assert conn.execute(select(func.count()).select_from(history.rooms)).scalar() == 0
+        # The v1 views exist and can be read.
+        from sqlalchemy import text
+        from custom_components.hotel_sense.views import VIEWS_V1
+        for name in VIEWS_V1:
+            conn.execute(text(f"SELECT * FROM {name}")).fetchall()
     engine.dispose()

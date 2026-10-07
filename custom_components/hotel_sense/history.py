@@ -13,7 +13,7 @@ Assistant and never loses the live picture:
 Privacy: MACs, SSIDs, room (Area) IDs and booking numbers only - no client
 names, IP addresses or guest data. Times are UTC.
 
-Tables (schema version 2):
+Tables (schema version 3):
 
 ``wifi_events``        Omada webhook client events (online / offline / roaming)
 ``presence_sessions``  a device was in a room from ... to ... (written when it ends)
@@ -21,6 +21,9 @@ Tables (schema version 2):
 ``room_status``        status changes (checked_in / checked_out) and who set them
 ``pms_events``         Exely webhook events and what came of them
 ``room_traffic``       Wi-Fi traffic per room, device category and hour
+``rooms``              the room model: number, name, kind (replaced when it changes)
+
+Read through the ``v1_*`` views (``views.py``), the stable interface.
 """
 from __future__ import annotations
 
@@ -38,10 +41,13 @@ from sqlalchemy import (
     delete, func, insert, select,
 )
 from sqlalchemy.engine import URL, Engine
+from sqlalchemy.exc import SQLAlchemyError
+
+from .views import create_views
 
 LOGGER = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2  # 2: room_traffic
+SCHEMA_VERSION = 3  # 2: room_traffic, 3: rooms + views v1
 DRIVER = "mysql+pymysql"
 FLUSH_INTERVAL = timedelta(seconds=15)
 BATCH_SIZE = 200
@@ -130,10 +136,24 @@ room_traffic = Table(
     Column("devices", Integer, nullable=False),
     **_TABLE_ARGS,
 )
+# The room model (number, name, kind), replaced as a whole when it changes.
+rooms = Table(
+    "rooms", metadata,
+    Column("room_id", String(64), primary_key=True),
+    Column("number", String(16)),
+    Column("name", String(128), nullable=False),
+    Column("kind", String(16), nullable=False),
+    Column("updated", DateTime, nullable=False),
+    **_TABLE_ARGS,
+)
 TABLES = {t.name: t for t in (wifi_events, presence_sessions, room_states, room_status,
                               pms_events, room_traffic)}
 # Column that ages a row out.
 _AGE_COLUMN = {"presence_sessions": "ended"}
+
+
+class HistoryUnavailable(Exception):
+    """The history database cannot be read now."""
 
 
 def build_url(host: str, port: int, username: str, password: str, database: str) -> URL:
@@ -152,6 +172,11 @@ def make_engine(url: URL | str) -> Engine:
 
 def _create_schema(engine: Engine) -> None:
     metadata.create_all(engine)
+    try:
+        with engine.begin() as conn:
+            create_views(conn)
+    except SQLAlchemyError as err:  # e.g. no CREATE VIEW right: the tables still work
+        LOGGER.warning("History database: views not created: %s", str(err).splitlines()[0][:300])
     with engine.begin() as conn:
         # New tables are created by create_all; record the version once.
         current = conn.execute(select(func.max(schema_version.c.version))).scalar()
@@ -189,6 +214,7 @@ class HistoryWriter:
         self.retention_months = retention_months
         self._engine: Engine | None = None
         self._queue: deque[tuple[str, dict]] = deque()
+        self._rooms: list[dict] | None = None  # room model snapshot to write
         self._lock = asyncio.Lock()  # one flush / purge at a time
         self._unsubs: list[CALLBACK_TYPE] = []
         self.connected = False
@@ -245,6 +271,11 @@ class HistoryWriter:
 
     # -- writing ------------------------------------------------------------ #
     @callback
+    def set_rooms(self, room_rows: list[dict]) -> None:
+        """The room model changed: write this snapshot with the next flush."""
+        self._rooms = room_rows
+
+    @callback
     def add(self, table: str, **row: Any) -> None:
         """Queue one row (``ts`` defaults to now)."""
         if table not in TABLES:
@@ -264,28 +295,47 @@ class HistoryWriter:
     async def async_flush(self) -> None:
         """Write the queue (waits for a flush already running)."""
         async with self._lock:
-            if not self._queue or not await self._async_connect():
+            if (not self._queue and self._rooms is None) or not await self._async_connect():
                 return
             batch = list(self._queue)
+            room_rows = self._rooms
             try:
-                await self.hass.async_add_executor_job(self._write, batch)
+                await self.hass.async_add_executor_job(self._write, batch, room_rows)
             except Exception as err:  # noqa: BLE001 - kept queued, retried next time
                 self._failed(err)
                 await self._async_reset()
                 return
             for _ in batch:
                 self._queue.popleft()
+            if self._rooms is room_rows:
+                self._rooms = None
             self.written += len(batch)
             self.last_write = dt_util.utcnow().isoformat()
             self.last_error = None
             self.connected = True
+
+    async def async_read(self, func):
+        """Run ``func(connection)`` in the executor, after writing what is queued.
+
+        For reports (``queries.py``): reads through the ``v1_*`` views.
+        """
+        await self.async_flush()
+        if not await self._async_connect():
+            raise HistoryUnavailable(self.last_error or "history database unavailable")
+        engine = self._engine
+
+        def _run():
+            with engine.connect() as conn:
+                return func(conn)
+
+        return await self.hass.async_add_executor_job(_run)
 
     async def _async_reset(self) -> None:
         if self._engine is not None:
             engine, self._engine = self._engine, None
             await self.hass.async_add_executor_job(engine.dispose)
 
-    def _write(self, batch: list[tuple[str, dict]]) -> None:
+    def _write(self, batch: list[tuple[str, dict]], room_rows: list[dict] | None = None) -> None:
         grouped: dict[str, list[dict]] = {}
         for table, row in batch:
             grouped.setdefault(table, []).append(row)
@@ -293,6 +343,11 @@ class HistoryWriter:
         with self._engine.begin() as conn:
             for table, rows in grouped.items():
                 conn.execute(insert(TABLES[table]), rows)
+            if room_rows is not None:
+                conn.execute(delete(rooms))
+                if room_rows:
+                    stamp = now()
+                    conn.execute(insert(rooms), [dict(r, updated=stamp) for r in room_rows])
 
     # -- retention ------------------------------------------------------------ #
     async def _async_purge_timer(self, _now=None) -> None:

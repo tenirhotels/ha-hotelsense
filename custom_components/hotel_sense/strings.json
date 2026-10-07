@@ -219,7 +219,7 @@
       },
       "rooms": {
         "title": "Rooms",
-        "description": "One line per room: room_id;name;number;kind;exely_room_ids\n- room_id and name come from the HA Area (rename the room in the Area; the access points of a room are those in its Area).\n- number: the room number used in reports, e.g. 01.\n- kind: room (check-in status, violations) or common (presence only, e.g. Admin House).\n- exely_room_ids: the room's Exely roomId and / or Exely room name, comma separated (the same as the Exely room mapping).\n\nThe check-in status of each room is kept with its origin (manual / exely, when, booking, user); the last change wins.{errors}",
+        "description": "One line per room: room_id;name;number;kind;exely_room_ids;exely_room_name\n- room_id and name come from the HA Area and cannot be changed here (rename the room in its Area; the access points of a room are those in its Area).\n- number: the room number used in reports, e.g. 01.\n- kind: room (check-in status, violations) or common (presence only, e.g. Admin House).\n- exely_room_ids: the room's Exely roomIds, comma separated (labels from older versions stay here and keep working).\n- exely_room_name: the room's name in Exely.\n\nThe check-in status of each room is kept with its origin (manual / exely, when, booking, user); the last change wins.{errors}",
         "data": {
           "csv": "Rooms (CSV)"
         }
@@ -521,6 +521,54 @@
         "booking": {
           "name": "Booking number",
           "description": "Optional: a booking number from the Exely webhook (BookingNumber) to test the reservation lookup."
+        }
+      }
+    },
+    "room_report": {
+      "name": "Room report",
+      "description": "What happened in a room in a period, from the history database: status changes, state changes, violations, presence and staff time per category, staff visits and traffic.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "room": {
+          "name": "Room",
+          "description": "Room number, name or ID, e.g. 06."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Start of the period (default: end minus hours)."
+        },
+        "end": {
+          "name": "End",
+          "description": "End of the period (default: now)."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "Length of the period when no start is given."
+        }
+      }
+    },
+    "hotel_report": {
+      "name": "Hotel report",
+      "description": "Per room for a period, from the history database: violations, status changes, staff time and visits, guest traffic.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Start of the period (default: end minus hours)."
+        },
+        "end": {
+          "name": "End",
+          "description": "End of the period (default: now)."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "Length of the period when no start is given."
         }
       }
     }

@@ -138,13 +138,15 @@ keeps its own record of it (the Area is how HA shows it):
 | `room_id` | = the area ID (entity IDs and the history use it) |
 | `kind` | `room` (status, violations) or `common` (presence only) |
 | `number` | room number for reports (from the Area name, editable) |
-| `exely_room_ids` | the room's Exely roomId and / or Exely room name |
+| `exely_room_ids` | the room's Exely PMS roomIds (labels from older versions stay here) |
+| `exely_room_name` | the room's name in Exely |
 | `status` | `value`, `source` (manual / exely / restored), `changed_at` (UTC), `booking`, `user_id` |
 
 The last status change wins, whatever its source; every change is also in the
 history database. The access points of a room are those in its Area. *Rooms*
-in the options edits all rooms as CSV (`room_id;name;number;kind;exely_room_ids`);
+in the options edits all rooms as CSV (`room_id;name;number;kind;exely_room_ids;exely_room_name`);
 *Room presence → common areas* and the *Exely room mapping* edit the same model.
+The name is the HA Area's (rename the Area); it is read only in the CSV.
 
 ### Entities per room (`room_01` = HA area ID)
 
@@ -295,6 +297,38 @@ SELECT DATE(ts) AS day, area_id,
 FROM room_traffic WHERE category = 'guest'
 GROUP BY day, area_id ORDER BY day DESC, area_id;
 ```
+
+### Reading the history: views and reports
+
+Read the history through the **views** below (Grafana, SQL, a future web
+admin), not the tables: the views are the stable interface, the tables may
+change. A change of meaning gets a new version (`v2_*`) next to the old one.
+Times are UTC; `room_id` is the room (= area id), `number` / `name` come from
+the room model.
+
+| View | Rows |
+|---|---|
+| `v1_rooms` | room_id, number, name, kind |
+| `v1_room_status` | ts, room_id, number, name, status, source, booking |
+| `v1_room_states` | ts, room_id, number, name, status, old_state, state, guest / employee devices |
+| `v1_violations` | room_id, number, name, started, ended (NULL while it lasts), guest_devices |
+| `v1_presence` | client_mac, room_id, number, name, category, started, ended, seconds |
+| `v1_staff_visits` | as `v1_presence`, employees only |
+| `v1_room_traffic_hourly` / `v1_room_traffic_daily` | hour / day, room_id, number, name, category, down_bytes, up_bytes |
+| `v1_pms_events` | ts, event_id, event, booking, status, result, rooms |
+| `v1_wifi_events` | ts, event, client_mac, ap_mac, from_ap_mac, ssid, connected_seconds, traffic_kb |
+
+The database user needs the right to create views (the MariaDB add-on's
+`rights` give it); without it the tables still fill and a warning is logged.
+
+**Actions** (Developer tools → Actions, response shown there):
+
+* `hotel_sense.room_report` — `room` (number, name or ID) and a period
+  (`hours`, default 24, or `start` / `end`): status and state changes,
+  violations, presence time per category, staff visits (names of the hotel's
+  own devices only), traffic.
+* `hotel_sense.hotel_report` — the same period for all rooms: violations,
+  status changes, staff time and visits, guest traffic.
 
 ## Installation
 
