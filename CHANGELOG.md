@@ -1,3 +1,6 @@
+# Hotel Sense 0.6.3
+- `exely_api_probe` also asks the Content API (property) and, with a booking number, the Read Reservation API: shows whether other Exely APIs answer when the PMS API fails
+
 # Hotel Sense 0.6.2
 - Exely API: a failing room list (Exely answered HTTP 500) no longer blocks the setup - sign-in is what the check requires. Without the list, rooms are matched by their Exely `roomId` (room mapping, e.g. `4503599627373585 = Room 07`); unmatched ones show the `roomId` in the last event. The list is retried at most once an hour
 - The room list is requested with Exely's default page size (no `maxPageSize`)
