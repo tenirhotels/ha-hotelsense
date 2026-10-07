@@ -1,6 +1,6 @@
 # Hotel Sense 0.12.0
-- Device identities: the device list holds devices (`EMP-0007`, `FIX-0003`; generated, or your own ID) with one or more MACs - MAC → device, so a staff phone that gets a new private MAC stays the same device. Name, category, owner, note, room and type belong to the device
-- CSV gets the `identity` column (last; CSVs without it import as before): rows with the same identity are MACs of one device. The device form has a *Device ID* field; editing a MAC keeps the device
+- Device identities: the device list holds devices with one or more MACs; every device gets its ID automatically, numbered in turn (`EMP-0001` … staff, `FIX-0002` … equipment) - MAC → device, so a staff phone that gets a new private MAC stays the same device. Name, category, owner, note, room and type belong to the device
+- CSV gets the `identity` column (last; CSVs without it import as before): rows with the same identity are MACs of one device. The device form has a *Device* drop-down (*New device* or a listed device - nothing typed); editing a MAC keeps the device
 - Actions `hotel_sense.link_mac` / `hotel_sense.unlink_mac`; `export_devices` also lists the devices; `device_route` takes `identity` and follows all its MACs
 - History database schema 4: the device list as the `devices` table and the view `v1_device_macs`
 - The list is migrated in place (one device per MAC); the old flat rows are still written, so going back to 0.11 keeps every device. MACs are never merged automatically; IDs are never reused

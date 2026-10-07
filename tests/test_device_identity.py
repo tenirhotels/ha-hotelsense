@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.exceptions import ServiceValidationError
 from sqlalchemy import create_engine, insert, text
 
@@ -203,11 +203,16 @@ async def test_options_form_links_a_mac_and_keeps_the_id_on_mac_edit(hass, make_
     assert result["step_id"] == "device_list"
     result = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"next_step_id": "device_add"})
+    # The device is chosen from the list (nothing typed): a made-up ID is refused.
+    form = result["data_schema"].schema
+    choices = next(v for k, v in form.items() if k == "identity").config["options"]
+    assert [c["value"] for c in choices] == ["new", "EMP-0001"]
+    assert choices[1]["label"] == "Maid phone (EMP-0001, employee)"
+    with pytest.raises(InvalidData):
+        await hass.config_entries.options.async_configure(flow["flow_id"], {
+            "mac": AC, "category": "fixed", "identity": "EMP-9999"})
     result = await hass.config_entries.options.async_configure(flow["flow_id"], {
-        "mac": AC, "category": "fixed", "identity": "not valid!"})
-    assert result["errors"] == {"identity": "invalid_identity"}
-    result = await hass.config_entries.options.async_configure(flow["flow_id"], {
-        "mac": PHONE_NEW, "name": "Other name", "category": "fixed", "identity": "emp-0001"})
+        "mac": PHONE_NEW, "name": "Other name", "category": "fixed", "identity": "EMP-0001"})
     assert result["step_id"] == "device_list"
     identities = hass_storage[STORAGE_KEY_DEVICES]["data"]["identities"]
     assert [(i["id"], i["macs"]) for i in identities] == [("EMP-0001", [PHONE_OLD, PHONE_NEW])]
@@ -238,6 +243,16 @@ async def test_options_form_links_a_mac_and_keeps_the_id_on_mac_edit(hass, make_
     identities = hass_storage[STORAGE_KEY_DEVICES]["data"]["identities"]
     assert [(i["id"], i["name"], len(i["macs"])) for i in identities] == [
         ("EMP-0001", "Maid phone", 3)]
+    # "New device" on a MAC of a device with several MACs splits it off (next ID).
+    result = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "device_edit_select"})
+    result = await hass.config_entries.options.async_configure(flow["flow_id"], {"mac": AC})
+    result = await hass.config_entries.options.async_configure(flow["flow_id"], {
+        "mac": AC, "name": "AC06", "category": "fixed", "identity": "new"})
+    identities = hass_storage[STORAGE_KEY_DEVICES]["data"]["identities"]
+    assert [(i["id"], i["name"], i["macs"]) for i in identities] == [
+        ("EMP-0001", "Maid phone", ["02-00-00-00-00-72", "02-00-00-00-00-75"]),
+        ("FIX-0003", "AC06", [AC])]
     result = await hass.config_entries.options.async_configure(
         flow["flow_id"], {"next_step_id": "finish"})
     assert result["type"] is FlowResultType.CREATE_ENTRY

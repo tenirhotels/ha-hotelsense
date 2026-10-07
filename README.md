@@ -62,10 +62,12 @@ Omada integration alongside it.
 
    **Device identities.** A MAC is an observation, not a device: phones use a
    private (random) MAC per network and get a new one when the network is
-   forgotten or the phone reset. Each entry of the list is a *device*
-   (`EMP-0007` for staff, `FIX-0003` for equipment - given automatically, or
-   your own ID) with one or more MACs: MAC → device. Rows of the CSV with the
-   same `identity` are MACs of one device; the form has a *Device ID* field;
+   forgotten or the phone reset. Each entry of the list is a *device* with one
+   or more MACs: MAC → device. Every device gets its ID automatically, numbered
+   in turn (`EMP-0001`, `EMP-0002` … for staff, `FIX-0003` … for equipment) -
+   nothing to make up. To add a second MAC to a device, pick the device in the
+   *Device* drop-down of the form (default: *New device*); in a CSV, put the
+   device's ID (from the export) in the `identity` column;
    `hotel_sense.link_mac` (device, MAC) adds a MAC to a device and
    `hotel_sense.unlink_mac` takes one off (it counts as a guest again). Name,
    category and owner belong to the device, so a new MAC of a staff phone is

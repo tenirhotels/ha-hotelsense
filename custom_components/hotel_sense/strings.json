@@ -100,10 +100,10 @@
           "note": "Note (department / role)",
           "room": "Room (where installed)",
           "device_type": "Device type",
-          "identity": "Device ID (e.g. EMP-0007)"
+          "identity": "Device"
         },
         "data_description": {
-          "identity": "One physical device can have several MACs (phones change their private MAC). Put the ID of an existing device to add this MAC to it; leave empty to keep the current one (a new MAC gets a new ID)."
+          "identity": "A phone can have several MACs (it changes its private MAC). Choose \"New device\" (the ID is given automatically) or the listed device this MAC belongs to - nothing to type."
         }
       },
       "device_edit_select": {
@@ -122,10 +122,10 @@
           "note": "Note (department / role)",
           "room": "Room (where installed)",
           "device_type": "Device type",
-          "identity": "Device ID (e.g. EMP-0007)"
+          "identity": "Device"
         },
         "data_description": {
-          "identity": "One physical device can have several MACs (phones change their private MAC). Put the ID of an existing device to add this MAC to it; leave empty to keep the current one (a new MAC gets a new ID)."
+          "identity": "A phone can have several MACs (it changes its private MAC). Choose \"New device\" (the ID is given automatically) or the listed device this MAC belongs to - nothing to type."
         }
       },
       "device_delete": {
@@ -246,7 +246,7 @@
       "db_database": "No database with this name (create it in the MariaDB add-on configuration).",
       "db_connect": "The database server does not answer at this host and port (is the MariaDB add-on running?).",
       "rooms_csv_errors": "Some lines are invalid, nothing was saved:",
-      "invalid_identity": "Invalid device ID: letters, digits, - _ . (up to 32)"
+      "invalid_identity": "The chosen device is no longer on the list"
     },
     "abort": {
       "no_devices": "The device list is empty."
