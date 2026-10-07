@@ -105,8 +105,7 @@ class FakeApi:
             ]} for raw in aps}
 
     def set_data(self, aps, clients, known=None) -> None:
-        """``known`` (Omada's client history) is kept for old call sites; Hotel Sense
-        no longer reads it."""
+        """``known``: Omada's known-client list (``omada_known_devices``)."""
         self.responses = {"/devices": aps, "/clients": {"data": clients},
                           "/insight/clients": {"data": known or []}}
 
@@ -128,6 +127,14 @@ class FakeApi:
         if site:
             end_point = f"sites/{site}/{end_point}"
         return f"{self.url}/{self.controller_id}/api/v2/{end_point}"
+
+    async def iterate_pages(self, url, params=None):
+        path = url.split("/api/v2/", 1)[1]
+        assert path == f"sites/{SITE_ID}/insight/clients", path
+        if self.raise_on_command:
+            raise self.raise_on_command.pop(0)
+        for raw in self.responses["/insight/clients"]["data"]:
+            yield dict(raw)
 
     async def request(self, method, url, params=None, json=None, data=None):
         path = url.split("/api/v2/", 1)[1]

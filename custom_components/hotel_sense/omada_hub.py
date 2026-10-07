@@ -34,7 +34,8 @@ from tplink_omada_client.exceptions import (
 from .mac import parse_mac
 
 __all__ = [
-    "AccessPoint", "BadControllerUrl", "ConnectedClient", "ConnectionFailed", "LoginFailed",
+    "AccessPoint", "BadControllerUrl", "ConnectedClient", "ConnectionFailed", "KnownClient",
+    "LoginFailed",
     "OmadaClientException", "OmadaHub", "RequestFailed", "SiteNotFound",
     "UnsupportedControllerVersion",
 ]
@@ -63,6 +64,27 @@ class ConnectedClient:
     rssi: int | None = None
     power_save: bool | None = None
     raw: Mapping[str, Any] = field(default_factory=dict, compare=False, repr=False)
+
+
+@dataclass(frozen=True)
+class KnownClient:
+    """An entry of Omada's known-client list (Insight → Known Clients).
+
+    Omada keeps every client it has seen (within its data retention) with
+    totals: ``duration`` is the time connected in seconds, ``download`` /
+    ``upload`` the traffic in bytes. Omada has no "first seen" there;
+    ``first_seen`` is filled only if a controller version reports one.
+    """
+
+    mac: str
+    name: str | None
+    wireless: bool
+    guest: bool
+    duration: int  # seconds connected, in total
+    download: int  # bytes, in total
+    upload: int
+    last_seen: float | None  # Unix time, seconds
+    first_seen: float | None = None
 
 
 def _mac(value: Any) -> str | None:
@@ -109,6 +131,29 @@ def client_from(raw: Mapping[str, Any]) -> ConnectedClient | None:
         rssi=_int(raw.get("rssi")) if wireless else None,
         power_save=raw.get("powerSave") if wireless else None,
         raw=dict(raw),
+    )
+
+
+def _epoch(value: Any) -> float | None:
+    """Omada time stamps are in milliseconds."""
+    number = _int(value)
+    return number / 1000 if number else None
+
+
+def known_client_from(raw: Mapping[str, Any]) -> KnownClient | None:
+    mac = _mac(raw.get("mac"))
+    if mac is None:
+        return None
+    return KnownClient(
+        mac=mac,
+        name=raw.get("name") or raw.get("hostName") or None,
+        wireless=bool(raw.get("wireless")),
+        guest=bool(raw.get("guest")),
+        duration=_int(raw.get("duration")) or 0,
+        download=_int(raw.get("download")) or 0,
+        upload=_int(raw.get("upload")) or 0,
+        last_seen=_epoch(raw.get("lastSeen")),
+        first_seen=_epoch(raw.get("firstSeen")),
     )
 
 
@@ -169,6 +214,15 @@ class OmadaHub:
             if (item := client_from(client.raw_data)) is not None:
                 clients[item.mac] = item
         return aps, clients
+
+    async def async_known_clients(self) -> list[KnownClient]:
+        """Every client Omada has seen on the site (paged; on demand, not per poll)."""
+        clients = []
+        async for raw in self._api.iterate_pages(
+                self._api.format_url("insight/clients", self.site_id)):
+            if (item := known_client_from(raw)) is not None:
+                clients.append(item)
+        return clients
 
     # -- client commands ------------------------------------------------------ #
     async def async_reconnect_client(self, mac: str) -> None:

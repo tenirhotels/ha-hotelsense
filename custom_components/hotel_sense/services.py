@@ -19,6 +19,7 @@ from .const import DOMAIN
 from .device_list import CATEGORIES
 from .mac import parse_mac
 from .omada_hub import OmadaClientException
+from .omada_known import omada_candidates
 from .history import HistoryUnavailable
 from .queries import device_candidates, device_route, hotel_report, room_report
 from .storage import async_get_device_store
@@ -37,6 +38,7 @@ SERVICE_ROOM_REPORT = "room_report"
 SERVICE_HOTEL_REPORT = "hotel_report"
 SERVICE_DEVICE_ROUTE = "device_route"
 SERVICE_DEVICE_CANDIDATES = "device_candidates"
+SERVICE_OMADA_KNOWN_DEVICES = "omada_known_devices"
 ATTR_BOOKING = "booking"
 ATTR_ROOM = "room"
 ATTR_START = "start"
@@ -45,6 +47,9 @@ ATTR_HOURS = "hours"
 ATTR_DAYS = "days"
 ATTR_MIN_DAYS = "min_days"
 ATTR_MIN_ROOMS_PER_DAY = "min_rooms_per_day"
+ATTR_MIN_HOURS = "min_hours"
+ATTR_SEEN_DAYS = "seen_days"
+ATTR_WIRED = "wired"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MAPPING = "mapping"
@@ -258,10 +263,18 @@ def async_register_services(hass: HomeAssistant) -> None:
         controller = _controller(hass, call)
         end = dt_util.utcnow()
         start = end - timedelta(days=call.data[ATTR_DAYS])
-        known = set((await async_get_device_store(hass)).devices)
+        known = {d.mac for d in (await async_get_device_store(hass)).devices}
         return await _read(controller, lambda conn: device_candidates(
             conn, start, end, known, min_days=call.data[ATTR_MIN_DAYS],
             min_rooms_per_day=call.data[ATTR_MIN_ROOMS_PER_DAY]))
+
+    async def omada_known_devices(call: ServiceCall) -> ServiceResponse:
+        controller = _controller(hass, call)
+        clients = await _omada(controller.hub.async_known_clients(), "reading known clients")
+        known = {d.mac for d in (await async_get_device_store(hass)).devices}
+        return omada_candidates(clients, known, dt_util.utcnow().timestamp(),
+                                min_hours=call.data[ATTR_MIN_HOURS],
+                                seen_days=call.data[ATTR_SEEN_DAYS], wired=call.data[ATTR_WIRED])
 
     period_fields = {
         vol.Optional(ATTR_START): cv.datetime,
@@ -288,6 +301,15 @@ def async_register_services(hass: HomeAssistant) -> None:
             vol.Optional(ATTR_MIN_DAYS, default=5): vol.All(vol.Coerce(int), vol.Range(min=1)),
             vol.Optional(ATTR_MIN_ROOMS_PER_DAY, default=3): vol.All(vol.Coerce(int),
                                                                     vol.Range(min=2)),
+        }),
+        supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        DOMAIN, SERVICE_OMADA_KNOWN_DEVICES, omada_known_devices,
+        schema=vol.Schema({
+            **entry_field,
+            vol.Optional(ATTR_MIN_HOURS, default=500): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            vol.Optional(ATTR_SEEN_DAYS, default=30): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            vol.Optional(ATTR_WIRED, default=False): cv.boolean,
         }),
         supports_response=SupportsResponse.ONLY)
     hass.services.async_register(
