@@ -1,3 +1,6 @@
+# Hotel Sense (unreleased)
+- Client entities (diagnostics option): a brand-new device that Omada does not yet list in its client history no longer breaks entity setup; its entities appear on a later poll (presence counts it immediately)
+
 # Hotel Sense 0.2.1
 - Room status select shows who set the status: `source` = manual / exely / restored (after a restart), `changed_at`, and `set_by` for a restored status
 - Controller outage: a failing re-login no longer aborts the poll; rooms are flagged `data_stale`

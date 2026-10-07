@@ -297,6 +297,10 @@ class OmadaController:
             for mac in macs:
                 if description.namespace in (NS_AP, NS_UPDATE) and not self.is_access_point(mac):
                     continue
+                # Client entities read Omada's client history (known clients), which
+                # lists a brand-new device a little after it connects: wait for it.
+                if description.namespace == NS_CLIENT and mac not in self.api.known_clients.items:
+                    continue
                 if (mac not in self.entities[description.domain][description.bucket] and
                         description.allowed_fn(self, mac) and description.supported_fn(self, mac)):
 
