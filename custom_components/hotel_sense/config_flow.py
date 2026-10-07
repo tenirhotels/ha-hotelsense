@@ -132,7 +132,8 @@ class HotelSenseConfigFlow(config_entries.ConfigFlow, domain=OMADA_DOMAIN):
             data = {**entry.data, **_clean(user_input)}
             hub, errors["base"] = await async_validate_connection(self.hass, data)
             if hub is not None:
-                return self.async_update_reload_and_abort(
+                # The entry's update listener reloads it (connection changed).
+                return self.async_update_and_abort(
                     entry, title=f"{hub.name}: {data[CONF_SITE]}", data=data)
         return self.async_show_form(step_id="reconfigure", errors=errors,
                                     data_schema=_connection_schema(user_input or entry.data))

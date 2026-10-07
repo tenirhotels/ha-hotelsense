@@ -318,7 +318,7 @@ async def test_config_flow_unknown_site(hass, patch_api):
     assert result["errors"] == {"base": "unknown_site"}
 
 
-async def test_reconfigure_keeps_exely_secrets(hass, make_entry, patch_api):
+async def test_reconfigure_keeps_exely_secrets(hass, make_entry, patch_api, caplog):
     """Changing the controller address must not invalidate the Exely webhook."""
     from custom_components.hotel_sense.const import CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID
 
@@ -334,6 +334,9 @@ async def test_reconfigure_keeps_exely_secrets(hass, make_entry, patch_api):
     assert entry.data[CONF_URL] == "https://192.0.2.9"
     assert (entry.data[CONF_EXELY_WEBHOOK_ID], entry.data[CONF_EXELY_API_KEY]) == secrets
     assert entry.state is ConfigEntryState.LOADED
+    # Reloaded by the entry's update listener, with the new address.
+    assert hass.data[DOMAIN][entry.entry_id].hub.url == "https://192.0.2.9"
+    assert "Detected" not in caplog.text  # HA's deprecation reports
 
 
 async def test_legacy_options_are_removed_on_startup(hass, make_entry, patch_api):
