@@ -16,6 +16,7 @@ import logging
 import secrets
 from collections import deque
 from dataclasses import asdict
+from datetime import datetime
 from http import HTTPStatus
 from json import JSONDecodeError
 
@@ -58,6 +59,7 @@ class OmadaWebhook:
         self.recent: deque[dict] = deque(maxlen=RECENT_EVENTS)
         self.received = 0
         self.rejected = 0
+        self.last_received: datetime | None = None
         self._registered = False
         self._refresh = Debouncer(hass, LOGGER, cooldown=REFRESH_COOLDOWN, immediate=True,
                                   function=controller.async_update)
@@ -114,6 +116,7 @@ class OmadaWebhook:
             return web.Response(status=HTTPStatus.UNAUTHORIZED)
 
         self.received += 1
+        self.last_received = dt_util.utcnow()
         if isinstance(payload, dict):
             payload = {k: v for k, v in payload.items() if k != SECRET_FIELD}
         self.recent.append({"received": dt_util.utcnow().isoformat(), "payload": payload})

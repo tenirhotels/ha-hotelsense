@@ -215,7 +215,13 @@ async def test_options_step_shows_url_and_key_and_saves_mapping(hass, make_entry
     assert placeholders["api_key"] == entry.data[CONF_EXELY_API_KEY]
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {CONF_EXELY_ROOM_MAP: "101 = Room 06"})
-    assert entry.options[CONF_EXELY_ROOM_MAP] == "101 = Room 06"
+    # Saved in the room model, not in the options.
+    registry = hass.data[DOMAIN][entry.entry_id].presence.registry
+    assert registry.get("room_06").exely_room_ids == ["101"]
+    assert CONF_EXELY_ROOM_MAP not in entry.options
+    result = await _options_menu(hass, entry, "exely")
+    key = next(k for k in result["data_schema"].schema if k == CONF_EXELY_ROOM_MAP)
+    assert key.description == {"suggested_value": "101 = Room 06"}
 
 
 def test_number_101_is_not_room_01():
@@ -307,5 +313,7 @@ async def test_cancelled_check_in_and_check_out_undo_the_status(hass, make_entry
 async def test_room_mapping_can_be_cleared(hass, make_entry, patch_api):
     entry = await _exely_hotel(hass, make_entry, {CONF_EXELY_ROOM_MAP: "101 = Room 07"})
     result = await _options_menu(hass, entry, "exely")
+    registry = hass.data[DOMAIN][entry.entry_id].presence.registry
+    assert registry.get("room_07").exely_room_ids == ["101"]
     result = await hass.config_entries.options.async_configure(result["flow_id"], {})
-    assert result["type"] == "create_entry" and entry.options[CONF_EXELY_ROOM_MAP] == ""
+    assert result["type"] == "create_entry" and registry.get("room_07").exely_room_ids == []

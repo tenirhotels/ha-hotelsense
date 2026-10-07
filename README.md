@@ -128,11 +128,29 @@ shows with the event's status change. If the API fails, the event shows
 `api_error`. Only room stay IDs, statuses and dates are used; diagnostics show
 the response *structure* without values, plus request counters.
 
+### Room model (Configure → Rooms)
+
+Every HA Area with access points becomes a Hotel Sense room. Hotel Sense
+keeps its own record of it (the Area is how HA shows it):
+
+| Field | |
+|---|---|
+| `room_id` | = the area ID (entity IDs and the history use it) |
+| `kind` | `room` (status, violations) or `common` (presence only) |
+| `number` | room number for reports (from the Area name, editable) |
+| `exely_room_ids` | the room's Exely roomId and / or Exely room name |
+| `status` | `value`, `source` (manual / exely / restored), `changed_at` (UTC), `booking`, `user_id` |
+
+The last status change wins, whatever its source; every change is also in the
+history database. The access points of a room are those in its Area. *Rooms*
+in the options edits all rooms as CSV (`room_id;name;number;kind;exely_room_ids`);
+*Room presence → common areas* and the *Exely room mapping* edit the same model.
+
 ### Entities per room (`room_01` = HA area ID)
 
 | Entity | Meaning |
 |---|---|
-| `select.room_01_status` | Room status: `checked_in` / `checked_out`; manual for now, set by the Exely PMS check-in/check-out webhook in Stage D; restored after restart |
+| `select.room_01_status` | Room status: `checked_in` / `checked_out`, manual or from Exely; attributes `source`, `changed_at`, `booking`, `user_id` (from the room model) |
 | `binary_sensor.room_01_guest_presence` | Guest or unknown Wi-Fi device in the room |
 | `binary_sensor.room_01_employee_presence` | Employee device in the room |
 | `binary_sensor.room_01_violation` | Possible violation (red on the dashboard) |
@@ -141,6 +159,18 @@ the response *structure* without values, plus request counters.
 | `sensor.hotel_sense_misplaced_devices` | Hotel-wide double check: fixed devices with a `room` seen in another room (swapped AP Areas, neighbouring AP, device moved); attribute `devices` lists name, expected and seen room |
 
 Common areas (Admin House) get only presence and counts.
+
+### Service health (controller device, diagnostic)
+
+| Entity | Meaning |
+|---|---|
+| `binary_sensor.<controller>_omada_controller` | The Omada controller answers the polls (off = unreachable) |
+| `sensor.<controller>_omada_webhook_last_message` | Time of the last Omada webhook message; attributes `received`, `rejected` |
+| `sensor.<controller>_exely_api` | `not_set_up` / `ok` / `error`; attributes `last_error`, `rooms_error`, `last_check`, `requests_last_hour` |
+| `binary_sensor.<controller>_history_database` | History database connected (only when set up); attributes `queued`, `written`, `dropped`, `last_write`, `last_error` |
+
+Examples for automations: controller off for 5 minutes; no webhook message for
+an hour; Exely API `error`; database off or `queued` growing.
 
 **Connection.** Each device in the `devices` attribute also shows where it is
 connected: `ap` (access point name), `ssid`, `rssi` (dBm), `last_seen` and
@@ -242,6 +272,7 @@ its own database, separate from the Home Assistant recorder.
 | `room_states` | room state changes (empty / violation / staff_visit / checked_in) with device counts |
 | `room_status` | check-in / check-out and who set it (manual / exely) with the booking number |
 | `pms_events` | Exely webhook events: event, booking, result, rooms |
+| `room_traffic` | Wi-Fi traffic per room, device category (guest / employee / fixed) and hour: bytes down / up, number of devices |
 
 Rows are queued and written in batches every 15 s; while the database is down
 they wait in memory (up to 20 000 rows) and are written when it is back - Home
@@ -250,6 +281,20 @@ on unload and when Home Assistant stops. Rows older than the retention period
 are deleted every night at 04:17. Times are UTC. Only MACs, SSIDs, rooms and
 booking numbers are stored: no client names, IP addresses or guest data.
 Diagnostics show the writer state (connected, queued, written, last error).
+
+**Traffic.** Omada reports each client's bytes of its current connection; every
+poll adds the growth to the room the client is in, and each hour's totals per
+room and category become one `room_traffic` row (the current hour is also
+written on unload / stop). A new connection counts from zero; after a restart
+the first poll only sets the baseline. Devices on access points without an Area
+are not counted. Daily traffic per room, in GB:
+
+```sql
+SELECT DATE(ts) AS day, area_id,
+       ROUND(SUM(down_bytes) / 1e9, 2) AS down_gb, ROUND(SUM(up_bytes) / 1e9, 2) AS up_gb
+FROM room_traffic WHERE category = 'guest'
+GROUP BY day, area_id ORDER BY day DESC, area_id;
+```
 
 ## Installation
 

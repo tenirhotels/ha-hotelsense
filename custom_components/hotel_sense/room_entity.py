@@ -31,7 +31,9 @@ MANUFACTURER = "Hotel Sense"
 # Room status select attributes: who set the status and when.
 ATTR_SOURCE = "source"          # manual / exely / restored
 ATTR_CHANGED_AT = "changed_at"  # time of the last real change (UTC, ISO)
-ATTR_SET_BY = "set_by"          # for "restored": who had set it (manual / exely)
+ATTR_SET_BY = "set_by"
+ATTR_BOOKING = "booking"         # Exely booking that set the status
+ATTR_USER_ID = "user_id"         # HA user who set it manually          # for "restored": who had set it (manual / exely)
 
 
 def room_device_info(manager: PresenceManager, room: RoomSnapshot) -> DeviceInfo:
@@ -276,12 +278,13 @@ class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        if self.manager.status_of(self.area_id) is not None:
+            return  # kept in the room model (0.8+)
+        # First start after the upgrade: the status of this entity before it.
         last = await self.async_get_last_state()
         status = LEGACY_STATUSES.get(last.state, last.state) if last else None
         if status not in STATUSES:
             status = STATUS_CHECKED_OUT
-        # The status is the one from before the restart: say so, and keep the time
-        # of the real change (and who made it) for reference.
         attrs = last.attributes if last else {}
         self.manager.async_set_status(self.area_id, status, STATUS_SOURCE_RESTORED,
                                       attrs.get(ATTR_CHANGED_AT))
@@ -290,19 +293,24 @@ class RoomStatusSelect(RoomEntity, SelectEntity, RestoreEntity):
 
     @property
     def current_option(self) -> str | None:
-        return self.manager.statuses.get(self.area_id)
+        status = self.manager.status_of(self.area_id)
+        return status.value if status else None
 
     @property
     def extra_state_attributes(self):
-        source, changed_at = self.manager.status_origin.get(self.area_id, (None, None))
-        attrs = {ATTR_SOURCE: source, ATTR_CHANGED_AT: changed_at}
-        if source == STATUS_SOURCE_RESTORED:
+        status = self.manager.status_of(self.area_id)
+        if status is None:
+            return {ATTR_SOURCE: None, ATTR_CHANGED_AT: None}
+        attrs = {ATTR_SOURCE: status.source, ATTR_CHANGED_AT: status.changed_at,
+                 ATTR_BOOKING: status.booking, ATTR_USER_ID: status.user_id}
+        if status.source == STATUS_SOURCE_RESTORED:
             # Who set it originally (manual / exely), if known.
             attrs[ATTR_SET_BY] = self._restored_from
         return attrs
 
     async def async_select_option(self, option: str) -> None:
-        self.manager.async_set_status(self.area_id, option)
+        user_id = self._context.user_id if self._context else None
+        self.manager.async_set_status(self.area_id, option, user_id=user_id)
 
 
 def select_factory(manager: PresenceManager, room: RoomSnapshot) -> list[RoomEntity]:

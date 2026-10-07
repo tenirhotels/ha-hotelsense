@@ -55,7 +55,8 @@
           "exely": "Exely PMS (заезд / выезд)",
           "omada_webhook": "Вебхук Omada (мгновенные обновления)",
           "exely_api": "Exely API (номер по брони)",
-          "database": "База истории (MariaDB)"
+          "database": "База истории (MariaDB)",
+          "rooms": "Номера (номер, тип, Exely)"
         },
         "description": "Текущее состояние:\n• Вебхук Omada: {omada_webhook}\n• Вебхук Exely: {exely_webhook}\n• Exely API: {exely_api}\n• База истории: {database}"
       },
@@ -215,6 +216,13 @@
         "data_description": {
           "db_password": "Оставьте пустым, чтобы сохранить прежний пароль."
         }
+      },
+      "rooms": {
+        "title": "Номера",
+        "description": "Одна строка на номер: room_id;name;number;kind;exely_room_ids\n- room_id и name берутся из Area HA (переименовывайте номер в Area; точки доступа номера — те, что в его Area).\n- number: номер комнаты для отчётов, например 01.\n- kind: room (статус заселения, нарушения) или common (только присутствие, например Admin House).\n- exely_room_ids: roomId и/или название номера в Exely через запятую (то же, что карта номеров Exely).\n\nСтатус заселения хранится вместе с происхождением (вручную / exely, когда, бронь, пользователь); побеждает последнее изменение.{errors}",
+        "data": {
+          "csv": "Номера (CSV)"
+        }
       }
     },
     "error": {
@@ -228,7 +236,8 @@
       "exely_cannot_connect": "Exely не ответил или вернул ошибку; причина ниже в «Сейчас» и в журнале Home Assistant.",
       "db_auth": "База отклонила пользователя или пароль (или у пользователя нет прав на эту базу).",
       "db_database": "Нет базы с таким именем (создайте её в настройках аддона MariaDB).",
-      "db_connect": "Сервер базы не отвечает по этому хосту и порту (аддон MariaDB запущен?)."
+      "db_connect": "Сервер базы не отвечает по этому хосту и порту (аддон MariaDB запущен?).",
+      "rooms_csv_errors": "Есть ошибки в строках, ничего не сохранено:"
     },
     "abort": {
       "no_devices": "Список устройств пуст."
@@ -269,6 +278,12 @@
       },
       "ap_status": {
         "name": "Статус"
+      },
+      "controller_online": {
+        "name": "Контроллер Omada"
+      },
+      "history_database": {
+        "name": "База истории"
       }
     },
     "sensor": {
@@ -311,6 +326,17 @@
       },
       "controller_clients": {
         "name": "Клиенты"
+      },
+      "omada_webhook_last_message": {
+        "name": "Вебхук Omada: последнее сообщение"
+      },
+      "exely_api": {
+        "name": "Exely API",
+        "state": {
+          "not_set_up": "Не настроен",
+          "ok": "Работает",
+          "error": "Ошибка"
+        }
       }
     },
     "select": {

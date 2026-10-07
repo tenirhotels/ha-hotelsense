@@ -326,3 +326,22 @@ async def test_cleared_user_switches_the_history_off(hass, make_entry, patch_api
     assert result["type"] == "create_entry"
     assert CONF_DB_USERNAME not in entry.data and CONF_DB_PASSWORD not in entry.data
     assert hass.data[DOMAIN][entry.entry_id].history is None
+
+
+def test_existing_database_gets_new_tables(tmp_path):
+    """A version-1 database (no room_traffic) is upgraded in place."""
+    url = _sqlite(tmp_path)
+    engine = create_engine(url)
+    with engine.begin() as conn:
+        history.schema_version.create(conn)
+        history.room_status.create(conn)
+        conn.execute(history.schema_version.insert().values(version=1, applied=history.now()))
+    engine.dispose()
+    history.check_connection(url)
+    history.check_connection(url)  # idempotent
+    engine = create_engine(url)
+    with engine.connect() as conn:
+        versions = [r[0] for r in conn.execute(select(history.schema_version.c.version))]
+        assert sorted(versions) == [1, 2]
+        assert conn.execute(select(func.count()).select_from(history.room_traffic)).scalar() == 0
+    engine.dispose()

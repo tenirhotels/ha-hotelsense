@@ -39,6 +39,8 @@ CONNECTION_KEYS = (CONF_URL, CONF_SITE, CONF_USERNAME, CONF_PASSWORD, CONF_VERIF
 # The history database connection (entry.data) reloads the entry as well.
 RELOAD_KEYS = CONNECTION_KEYS + DB_KEYS
 # Keys of the entities each access point has (see sensor.py / binary_sensor.py).
+# Room entities only hotel rooms have (not common areas).
+ROOM_ONLY_KEYS = {"room_status", "room_state", "violation"}
 AP_ENTITY_KEYS = {"sensor": {"uptime", "clients"}, "binary_sensor": {"status"}}
 # Names/types of clients that just left are kept this long (presence keeps a
 # departed device in its room for the disconnect timeout).
@@ -193,9 +195,18 @@ class OmadaController:
     def _is_current_entity(self, domain: str, unique_id: str) -> bool:
         cid = self.controller_id
         if unique_id.startswith("room:"):
+            # room:<site>:<area_id>[:<key>]; a common area has no status / state / violation.
+            parts = unique_id.split(":")
+            if len(parts) == 4 and parts[3] in ROOM_ONLY_KEYS and self.presence is not None:
+                room = self.presence.registry.get(parts[2])
+                return room is None or not room.is_common
             return True
-        if unique_id in {f"clients-{cid}", f"exely_last_event-{cid}", f"misplaced_devices-{cid}"}:
+        if unique_id in {f"clients-{cid}", f"exely_last_event-{cid}", f"misplaced_devices-{cid}",
+                         f"controller_online-{cid}", f"omada_webhook_last_message-{cid}",
+                         f"exely_api-{cid}"}:
             return True
+        if unique_id == f"history_database-{cid}":
+            return self.history is not None
         parsed = parse_unique_id(unique_id)
         return (parsed is not None and parsed.namespace == NS_AP
                 and parsed.key in AP_ENTITY_KEYS.get(domain, ()))

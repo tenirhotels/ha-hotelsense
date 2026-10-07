@@ -13,13 +13,14 @@ Assistant and never loses the live picture:
 Privacy: MACs, SSIDs, room (Area) IDs and booking numbers only - no client
 names, IP addresses or guest data. Times are UTC.
 
-Tables (schema version 1):
+Tables (schema version 2):
 
 ``wifi_events``        Omada webhook client events (online / offline / roaming)
 ``presence_sessions``  a device was in a room from ... to ... (written when it ends)
 ``room_states``        room state changes (empty / violation / staff_visit / checked_in)
 ``room_status``        status changes (checked_in / checked_out) and who set them
 ``pms_events``         Exely webhook events and what came of them
+``room_traffic``       Wi-Fi traffic per room, device category and hour
 """
 from __future__ import annotations
 
@@ -34,13 +35,13 @@ from homeassistant.helpers.event import async_track_time_change, async_track_tim
 from homeassistant.util import dt as dt_util
 from sqlalchemy import (
     BigInteger, Boolean, Column, DateTime, Float, Integer, MetaData, String, Table, create_engine,
-    delete, insert, select,
+    delete, func, insert, select,
 )
 from sqlalchemy.engine import URL, Engine
 
 LOGGER = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: room_traffic
 DRIVER = "mysql+pymysql"
 FLUSH_INTERVAL = timedelta(seconds=15)
 BATCH_SIZE = 200
@@ -118,8 +119,19 @@ pms_events = Table(
     Column("rooms", String(255)),
     **_TABLE_ARGS,
 )
+room_traffic = Table(
+    "room_traffic", metadata,
+    Column("id", _ID, primary_key=True, autoincrement=True),
+    Column("ts", DateTime, nullable=False, index=True),  # start of the hour (UTC)
+    Column("area_id", String(64), nullable=False, index=True),
+    Column("category", String(16), nullable=False),  # guest / employee / fixed
+    Column("down_bytes", BigInteger, nullable=False),
+    Column("up_bytes", BigInteger, nullable=False),
+    Column("devices", Integer, nullable=False),
+    **_TABLE_ARGS,
+)
 TABLES = {t.name: t for t in (wifi_events, presence_sessions, room_states, room_status,
-                              pms_events)}
+                              pms_events, room_traffic)}
 # Column that ages a row out.
 _AGE_COLUMN = {"presence_sessions": "ended"}
 
@@ -141,7 +153,9 @@ def make_engine(url: URL | str) -> Engine:
 def _create_schema(engine: Engine) -> None:
     metadata.create_all(engine)
     with engine.begin() as conn:
-        if conn.execute(select(schema_version.c.version)).first() is None:
+        # New tables are created by create_all; record the version once.
+        current = conn.execute(select(func.max(schema_version.c.version))).scalar()
+        if current is None or current < SCHEMA_VERSION:
             conn.execute(insert(schema_version).values(version=SCHEMA_VERSION, applied=now()))
 
 

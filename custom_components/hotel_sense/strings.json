@@ -55,7 +55,8 @@
           "exely": "Exely PMS (check-in / check-out)",
           "omada_webhook": "Omada webhook (instant updates)",
           "exely_api": "Exely API (room of a booking)",
-          "database": "History database (MariaDB)"
+          "database": "History database (MariaDB)",
+          "rooms": "Rooms (number, kind, Exely)"
         },
         "description": "Current state:\n• Omada webhook: {omada_webhook}\n• Exely webhook: {exely_webhook}\n• Exely API: {exely_api}\n• History database: {database}"
       },
@@ -215,6 +216,13 @@
         "data_description": {
           "db_password": "Leave empty to keep the saved password."
         }
+      },
+      "rooms": {
+        "title": "Rooms",
+        "description": "One line per room: room_id;name;number;kind;exely_room_ids\n- room_id and name come from the HA Area (rename the room in the Area; the access points of a room are those in its Area).\n- number: the room number used in reports, e.g. 01.\n- kind: room (check-in status, violations) or common (presence only, e.g. Admin House).\n- exely_room_ids: the room's Exely roomId and / or Exely room name, comma separated (the same as the Exely room mapping).\n\nThe check-in status of each room is kept with its origin (manual / exely, when, booking, user); the last change wins.{errors}",
+        "data": {
+          "csv": "Rooms (CSV)"
+        }
       }
     },
     "error": {
@@ -228,7 +236,8 @@
       "exely_cannot_connect": "Exely did not answer or reported an error; the reason is shown under \"Now\" below and in the Home Assistant log.",
       "db_auth": "The database rejected the user or password (or the user has no rights on this database).",
       "db_database": "No database with this name (create it in the MariaDB add-on configuration).",
-      "db_connect": "The database server does not answer at this host and port (is the MariaDB add-on running?)."
+      "db_connect": "The database server does not answer at this host and port (is the MariaDB add-on running?).",
+      "rooms_csv_errors": "Some lines are invalid, nothing was saved:"
     },
     "abort": {
       "no_devices": "The device list is empty."
@@ -269,6 +278,12 @@
       },
       "ap_status": {
         "name": "Status"
+      },
+      "controller_online": {
+        "name": "Omada controller"
+      },
+      "history_database": {
+        "name": "History database"
       }
     },
     "sensor": {
@@ -311,6 +326,17 @@
       },
       "controller_clients": {
         "name": "Clients"
+      },
+      "omada_webhook_last_message": {
+        "name": "Omada webhook last message"
+      },
+      "exely_api": {
+        "name": "Exely API",
+        "state": {
+          "not_set_up": "Not set up",
+          "ok": "OK",
+          "error": "Error"
+        }
       }
     },
     "select": {

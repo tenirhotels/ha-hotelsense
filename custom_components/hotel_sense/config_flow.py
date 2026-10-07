@@ -66,6 +66,7 @@ from .omada_hub import (
     SiteNotFound, UnsupportedControllerVersion,
 )
 from .device_kind import LISTABLE_KINDS
+from .exely import parse_room_map
 from .exely_api import ExelyApiError, ExelyAuthError, ExelyNotFound
 from . import history
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
@@ -181,8 +182,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_menu(
             step_id="init",
-            menu_options=["device_tracker", "omada_webhook", "presence", "device_list", "exely",
-                          "exely_api", "database"],
+            menu_options=["device_tracker", "omada_webhook", "presence", "rooms", "device_list",
+                          "exely", "exely_api", "database"],
             description_placeholders={
                 "omada_webhook": self._omada_webhook_status(),
                 "exely_webhook": self._exely_webhook_status(),
@@ -269,12 +270,17 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
     async def async_step_presence(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         manager = self.controller.presence
         if user_input is not None:
+            # Room kinds live in the room model; the other values are options.
+            common = set(user_input.pop(CONF_COMMON_AREAS, []) or [])
             self.options.update(user_input)
+            if manager.registry.set_kinds(common):
+                # Rooms and common areas expose different entities: rebuild them.
+                self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
             return await self._update_options()
 
         areas = ar.async_get(self.hass)
         area_ids = sorted({a for a in resolve_ap_areas(self.hass, self.controller).values() if a}
-                          | set(self.options.get(CONF_COMMON_AREAS) or []))
+                          | set(manager.registry.rooms))
         area_options = [
             SelectOptionDict(value=area_id, label=(area.name if (area := areas.async_get_area(area_id)) else area_id))
             for area_id in area_ids
@@ -459,8 +465,10 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
     async def async_step_exely(self, user_input: dict[str, Any] | None = None,
                                step_id: str = "exely") -> ConfigFlowResult:
         receiver = self.controller.exely
+        registry = self.controller.presence.registry
         if user_input is not None:
-            self.options[CONF_EXELY_ROOM_MAP] = user_input.get(CONF_EXELY_ROOM_MAP, "")
+            # The mapping lives in the room model (Exely labels of each room).
+            registry.set_room_map(parse_room_map(user_input.get(CONF_EXELY_ROOM_MAP, "")))
             new_key = user_input.get(CONF_EXELY_NEW_KEY, False)
             new_url = user_input.get(CONF_EXELY_NEW_URL, False)
             if not (new_key or new_url):
@@ -473,7 +481,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             step_id=step_id,
             data_schema=vol.Schema({
                 vol.Optional(CONF_EXELY_ROOM_MAP, description={
-                    "suggested_value": self.options.get(CONF_EXELY_ROOM_MAP, "")}):
+                    "suggested_value": registry.room_map_text()}):
                     TextSelector(TextSelectorConfig(multiline=True)),
                 vol.Optional(CONF_EXELY_NEW_KEY, default=False): bool,
                 vol.Optional(CONF_EXELY_NEW_URL, default=False): bool,
@@ -616,3 +624,29 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             return "not set up"
         state = "connected" if writer.connected else (writer.last_error or "not connected yet")
         return f"{state}; rows written: {writer.written}, queued: {writer.queued}"
+
+    # ------------------------------------------------------------------ #
+    # Rooms (the room model): number, kind, Exely labels as CSV
+    # ------------------------------------------------------------------ #
+    async def async_step_rooms(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        registry = self.controller.presence.registry
+        errors: dict[str, str] = {}
+        placeholders = {"errors": ""}
+        if user_input is not None:
+            problems, kinds_changed = registry.import_csv(user_input.get(CONF_CSV, ""))
+            if not problems:
+                if kinds_changed:
+                    self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
+                else:
+                    self.controller.presence.async_refresh()
+                return await self._update_options()
+            errors["base"] = "rooms_csv_errors"
+            placeholders["errors"] = "\n\n" + "\n".join(problems[:10])
+        return self.async_show_form(
+            step_id="rooms",
+            errors=errors,
+            data_schema=vol.Schema({vol.Optional(CONF_CSV, description={
+                "suggested_value": (user_input or {}).get(CONF_CSV) or registry.export_csv()}):
+                TextSelector(TextSelectorConfig(multiline=True))}),
+            description_placeholders=placeholders,
+        )

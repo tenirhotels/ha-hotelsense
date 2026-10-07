@@ -41,4 +41,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         "history": controller.history.diagnostics() if controller.history else None,
         "rooms": {a: {"name": r.name, "status": r.status, "state": r.state}
                   for a, r in controller.presence.rooms.items()},
+        "room_model": controller.presence.registry.diagnostics(),
     }

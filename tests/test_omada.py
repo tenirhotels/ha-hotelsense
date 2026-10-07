@@ -51,7 +51,8 @@ async def test_entities_are_rooms_access_points_and_controller(hass, make_entry,
                 _uid("ap", SITE_ID, ap, "status")} <= uids
     assert {f"clients-{CID}", f"misplaced_devices-{CID}", f"exely_last_event-{CID}"} <= uids
     other = {u for u in uids if not u.startswith(("room:", "ap:"))} - {
-        f"clients-{CID}", f"misplaced_devices-{CID}", f"exely_last_event-{CID}"}
+        f"clients-{CID}", f"misplaced_devices-{CID}", f"exely_last_event-{CID}",
+        f"controller_online-{CID}", f"omada_webhook_last_message-{CID}", f"exely_api-{CID}"}
     assert not other
     # No per-client entities or devices any more.
     assert not [u for u in uids if u.startswith(("client:", "update:"))]
@@ -350,7 +351,12 @@ async def test_legacy_options_are_removed_on_startup(hass, make_entry, patch_api
               "track_clients": False, "track_devices": True}
     entry = make_entry(current | legacy)
     controller = await _setup(hass, entry)
-    assert dict(entry.options) == current
+    # Room options moved into the room model (0.8).
+    assert dict(entry.options) == {k: v for k, v in current.items()
+                                   if k not in ("common_areas", "exely_room_map")}
+    registry = controller.presence.registry
+    registry.ensure("admin_house", "Admin House")
+    assert registry.get("admin_house").is_common
     assert entry.state is ConfigEntryState.LOADED
     assert hass.data[DOMAIN][entry.entry_id] is controller  # not reloaded
     assert controller.option_scan_interval == 15
