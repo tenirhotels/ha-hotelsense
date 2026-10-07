@@ -63,17 +63,18 @@ Omada integration alongside it.
    **Device identities.** A MAC is an observation, not a device: phones use a
    private (random) MAC per network and get a new one when the network is
    forgotten or the phone reset. Each entry of the list is a *device* with one
-   or more MACs: MAC → device. Every device gets its ID automatically, numbered
-   in turn (`EMP-0001`, `EMP-0002` … for staff, `FIX-0003` … for equipment) -
-   nothing to make up. To add a second MAC to a device, pick the device in the
-   *Device* drop-down of the form (default: *New device*); in a CSV, put the
-   device's ID (from the export) in the `identity` column;
-   `hotel_sense.link_mac` (device, MAC) adds a MAC to a device and
+   or more MACs: MAC → device. Devices are numbered automatically in the order
+   they are added - 1, 2, 3 … one series for staff and equipment alike, so a
+   wrong category is corrected without the number changing; numbers are never
+   reused. To add a second MAC to a device, pick the device in the *Device*
+   drop-down of the form (default: *New device*); in a CSV, put the device's
+   number (from the export) in the `identity` column (empty = new device);
+   `hotel_sense.link_mac` (device number, MAC) adds a MAC to a device and
    `hotel_sense.unlink_mac` takes one off (it counts as a guest again). Name,
    category and owner belong to the device, so a new MAC of a staff phone is
    staff at once. MACs are never merged automatically - a wrong merge would
    hide a guest in an empty room; random MACs are counted like any other
-   device. IDs stay the same when the category changes and are never reused.
+   device.
 4. **Presence options** (Configure → *Room presence*): disconnect timeout
    (default 5 min), roaming debounce (default 30 s), minimum RSSI to move a
    device between rooms (off by default, tune during the pilot), and the list

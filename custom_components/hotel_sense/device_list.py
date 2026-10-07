@@ -9,8 +9,9 @@ Anything not on the list is a guest / unknown device.
 
 A MAC is an observation, not a device: phones use a private (random) MAC per
 network and get a new one when the network is forgotten or the phone reset.
-So the list holds **device identities** (``EMP-0007``: name, category, owner
-...) and each identity has one or more MACs - MAC -> identity, never the other
+So the list holds **device identities** (numbered 1, 2, 3 ... in the order they
+are added, whatever their category: name, category, owner ...) and each
+identity has one or more MACs - MAC -> identity, never the other
 way round. A MAC belongs to at most one identity; MACs are linked to an
 identity only by the owner (``link_mac`` / the CSV ``identity`` column), never
 merged automatically. Callers that think in MACs still see one row
@@ -65,20 +66,21 @@ _HEADER_ALIASES = {
 # ``identity`` last: CSVs without it (positional or with a header) still import.
 CSV_FIELDS = ("mac", "name", "category", "owner", "note", "room", "device_type", "identity")
 
-# Generated identity IDs: EMP-0001 (employee), FIX-0001 (fixed equipment).
-ID_PREFIX = {CATEGORY_EMPLOYEE: "EMP", CATEGORY_FIXED: "FIX"}
-_ID_RE = re.compile(r"^[A-Z0-9][A-Z0-9_.-]{0,31}$")
-_GENERATED_ID_RE = re.compile(r"^(?:EMP|FIX)-(\d+)$")
+# Identity IDs are sequence numbers ("1", "2" ...), the same series for every
+# category: the category can be corrected without the ID changing meaning.
+_ID_RE = re.compile(r"^#?0*([1-9][0-9]{0,8})$")
 # Identity attributes (everything of a row but the MAC and the identity ID).
 ATTRIBUTES = ("category", "name", "owner", "note", "room", "device_type")
 
 
-def parse_identity_id(value: str | None) -> str:
-    """Normalise an identity ID (upper case); "" stays "" (= assign one)."""
-    ident = (value or "").strip().upper()
-    if ident and not _ID_RE.match(ident):
-        raise ValueError(f"Invalid identity ID: {value!r} (letters, digits, - _ ., max 32)")
-    return ident
+def parse_identity_id(value: str | int | None) -> str:
+    """Normalise an identity ID ("7", "#7", "007" -> "7"); "" stays "" (= assign one)."""
+    ident = str(value if value is not None else "").strip()
+    if not ident:
+        return ""
+    if (match := _ID_RE.match(ident)) is None:
+        raise ValueError(f"Invalid device number: {value!r} (a whole number, e.g. 7)")
+    return match.group(1)
 
 
 def parse_category(value: str | None, default: str | None = None) -> str:
@@ -185,7 +187,8 @@ class DeviceList:
         return iter(sorted(rows, key=lambda d: (d.category, d.name, d.mac)))
 
     def identities(self) -> list[DeviceIdentity]:
-        return sorted(self._identities.values(), key=lambda i: (i.category, i.name, i.id))
+        """In number order."""
+        return sorted(self._identities.values(), key=lambda i: int(i.id))
 
     def identity(self, identity_id: str) -> DeviceIdentity | None:
         try:
@@ -210,14 +213,12 @@ class DeviceList:
 
     # -- mutations -------------------------------------------------------- #
     def _highest_number(self) -> int:
-        """Highest number of an EMP-/FIX- ID given out or in use."""
-        numbers = [int(m.group(1)) for ident in self._identities
-                   if (m := _GENERATED_ID_RE.match(ident))]
-        return max(self._last_number, *numbers, 0)
+        """Highest device number given out or in use."""
+        return max(self._last_number, *(int(i) for i in self._identities), 0)
 
-    def _new_id(self, category: str) -> str:
+    def _new_id(self) -> str:
         self._last_number = self._highest_number() + 1
-        return f"{ID_PREFIX[category]}-{self._last_number:04d}"
+        return str(self._last_number)
 
     def _detach(self, mac: str) -> None:
         ident = self._by_mac.pop(mac, None)
@@ -243,7 +244,7 @@ class DeviceList:
         (created if new), else the MAC's current identity, else a new one.
         """
         is_new = device.mac not in self._by_mac
-        ident = device.identity or self._by_mac.get(device.mac) or self._new_id(device.category)
+        ident = device.identity or self._by_mac.get(device.mac) or self._new_id()
         identity = self._identities.get(ident) or DeviceIdentity(id=ident,
                                                                  category=device.category)
         for attr in ATTRIBUTES:

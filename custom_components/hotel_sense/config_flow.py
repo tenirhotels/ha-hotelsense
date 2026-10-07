@@ -344,7 +344,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                      if self.hass.config.language.startswith("ru")
                      else "New device (ID given automatically)")
         identities = [SelectOptionDict(value=NEW_DEVICE, label=new_label)] + [
-            SelectOptionDict(value=i.id, label=f"{i.name or i.macs[0]} ({i.id}, {i.category})")
+            SelectOptionDict(value=i.id, label=f"#{i.id} {i.name or i.macs[0]} ({i.category})")
             for i in devices.identities()]
         return vol.Schema({
             vol.Required(CONF_MAC, default=d.mac if d else ""): str,
@@ -416,7 +416,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
 
     def _device_choices(self, store) -> list[SelectOptionDict]:
         return [SelectOptionDict(value=d.mac,
-                                 label=f"{d.name or d.mac} ({d.identity}, {d.mac}, {d.category})")
+                                 label=f"#{d.identity} {d.name or d.mac} ({d.mac}, {d.category})")
                 for d in store.devices]
 
     async def async_step_device_edit_select(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

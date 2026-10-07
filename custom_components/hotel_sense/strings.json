@@ -607,7 +607,7 @@
         },
         "identity": {
           "name": "Device ID",
-          "description": "A device from the device list (e.g. EMP-0007): the route over all its MACs."
+          "description": "A device from the device list (its number, e.g. 7): the route over all its MACs."
         }
       }
     },
@@ -661,7 +661,7 @@
       "fields": {
         "identity": {
           "name": "Device ID",
-          "description": "The device on the list, e.g. EMP-0007."
+          "description": "The device on the list, its number, e.g. 7."
         },
         "mac": {
           "name": "MAC address",

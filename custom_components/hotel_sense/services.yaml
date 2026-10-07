@@ -186,7 +186,7 @@ device_route:
       selector:
         text:
     identity:
-      example: "EMP-0007"
+      example: "7"
       selector:
         text:
     start:
@@ -257,7 +257,7 @@ link_mac:
   fields:
     identity:
       required: true
-      example: "EMP-0007"
+      example: "7"
       selector:
         text:
     mac:
