@@ -233,6 +233,7 @@ class ExelyApi:
         self.requests = 0
         self.token_requests = 0
         self.last_error: str | None = None
+        self.last_check: str | None = None  # result of the last options check
         self.recent: deque[dict] = deque(maxlen=RECENT_LOOKUPS)
 
     @property
@@ -417,8 +418,10 @@ class ExelyApi:
             count = len(await self.async_rooms(property_id, refresh=True))
         except ExelyApiError as err:
             self.last_error = f"{type(err).__name__}: {err}"
+            self.last_check = f"failed {_now_text()}"
             raise
         self.last_error = None
+        self.last_check = f"OK {_now_text()}, {count} rooms"
         return count
 
     def diagnostics(self) -> dict:
@@ -429,11 +432,16 @@ class ExelyApi:
             "requests_last_hour": self.requests_last_hour(),
             "token_requests": self.token_requests,
             "last_error": self.last_error,
+            "last_check": self.last_check,
             "cached_bookings": len(self._bookings),
             "rooms": {p: {"fetched": r.get("fetched"), "rooms": r.get("rooms")}
                       for p, r in rooms.items()},
             "recent_lookups": list(self.recent),
         }
+
+
+def _now_text() -> str:
+    return dt_util.as_local(dt_util.utcnow()).strftime("%Y-%m-%d %H:%M")
 
 
 async def _describe(resp: aiohttp.ClientResponse, secret: str | None = None) -> str:

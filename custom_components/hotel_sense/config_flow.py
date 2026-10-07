@@ -183,7 +183,43 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             menu_options=["device_tracker", "omada_webhook", "presence", "device_list", "exely",
                           "exely_api", "database"],
+            description_placeholders={
+                "omada_webhook": self._omada_webhook_status(),
+                "exely_webhook": self._exely_webhook_status(),
+                "exely_api": self._exely_api_status(),
+                "database": self._database_status(),
+            },
         )
+
+    # Current state of each part, shown in the menu and on its page: what is
+    # already set up and whether it works.
+    def _omada_webhook_status(self) -> str:
+        hook = self.controller.omada_webhook
+        if not hook.received:
+            return "no messages yet"
+        return f"working, {hook.received} messages received"
+
+    def _exely_webhook_status(self) -> str:
+        last = self.controller.exely.last
+        if not last:
+            return "no events yet"
+        return f"last event {last.get('received', '')[:16].replace('T', ' ')} UTC: {last['result']}"
+
+    def _exely_api_status(self) -> str:
+        entry = self.config_entry
+        client_id = entry.data.get(CONF_EXELY_CLIENT_ID)
+        api = self.controller.exely.api
+        if not client_id:
+            # A failed check is not saved: still say why it failed.
+            return f"not set up; last error: {api.last_error}" if api.last_error else "not set up"
+        parts = [f"set up (client ID {client_id[:4]}…, property "
+                 f"{entry.data.get(CONF_EXELY_PROPERTY_ID) or '?'})"]
+        if api.last_error:
+            parts.append(f"last error: {api.last_error}")
+        elif api.last_check:
+            parts.append(f"last check: {api.last_check}")
+        parts.append(f"requests in the last hour: {api.requests_last_hour()}")
+        return "; ".join(parts)
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Polling: how often the controller is asked for its clients."""
@@ -504,7 +540,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             }),
             description_placeholders={
                 "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no",
-                "last_error": self.controller.exely.api.last_error or "-"},
+                "status": self._exely_api_status()},
         )
 
     # ------------------------------------------------------------------ #
@@ -573,6 +609,6 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
     def _database_status(self) -> str:
         writer = self.controller.history
         if writer is None:
-            return "off"
+            return "not set up"
         state = "connected" if writer.connected else (writer.last_error or "not connected yet")
         return f"{state}; rows written: {writer.written}, queued: {writer.queued}"

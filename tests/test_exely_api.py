@@ -473,5 +473,26 @@ async def test_options_show_why_the_check_failed(hass, make_entry, patch_api, ai
                                            CONF_EXELY_CLIENT_SECRET: "secret",
                                            CONF_EXELY_PROPERTY_ID: PROP})
     assert result["errors"] == {"base": "exely_cannot_connect"}
-    assert "maxPageSize is invalid" in result["description_placeholders"]["last_error"]
+    assert "maxPageSize is invalid" in result["description_placeholders"]["status"]
     assert "Exely API check failed" in caplog.text and "HTTP 400" in caplog.text
+
+
+async def test_menu_and_page_show_what_is_set_up(hass, make_entry, patch_api, exely):
+    entry = await _exely_hotel(hass, make_entry)
+    menu = await _options_menu(hass, entry)
+    placeholders = menu["description_placeholders"]
+    assert placeholders["exely_api"] == "not set up"
+    assert placeholders["database"] == "not set up"
+    assert placeholders["omada_webhook"] == "no messages yet"
+    assert placeholders["exely_webhook"] == "no events yet"
+
+    await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client-1234",
+                                  CONF_EXELY_CLIENT_SECRET: "secret", CONF_EXELY_PROPERTY_ID: PROP})
+    menu = await _options_menu(hass, entry)
+    status = menu["description_placeholders"]["exely_api"]
+    assert status.startswith(f"set up (client ID clie…, property {PROP})")
+    assert "last check: OK" in status and "2 rooms" in status
+    assert "client-1234" not in status and "secret" not in status
+    page = await _options_menu(hass, entry, "exely_api")
+    assert page["description_placeholders"]["status"] == status
+    assert page["description_placeholders"]["secret_saved"] == "yes"
