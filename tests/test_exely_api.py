@@ -547,6 +547,10 @@ async def test_probe_service_reports_what_exely_answers(hass, make_entry, patch_
     aioclient_mock.get(ROOMS_URL, status=500, headers={"x-request-id": "abc123"},
                        text='{"errors":[{"code":"InternalError"}]}')
     aioclient_mock.get(_booking_url(), json=_reservation((ROOM_06, "CheckedIn")))
+    aioclient_mock.get(f"{exely_api.API_URL}/content/v1/properties/{PROP}",
+                       json={"id": PROP, "name": "***"})
+    aioclient_mock.get(f"{exely_api.API_URL}/read-reservation/v1/properties/{PROP}/bookings/"
+                       f"{BOOKING}", status=500, text='{"errors":[{"code":"InternalError"}]}')
     entry = await _api_hotel(hass, make_entry)
     result = await hass.services.async_call(DOMAIN, "exely_api_probe", {"booking": BOOKING},
                                             blocking=True, return_response=True)
@@ -555,6 +559,8 @@ async def test_probe_service_reports_what_exely_answers(hass, make_entry, patch_
     assert "request_id: abc123" in result["rooms"]["error"]
     assert result["rooms_max_page_size"] == {"ok": True, "rooms": 2, "shape": shape(ROOMS)}
     assert result["reservation"]["stays"][0]["room_id"] == ROOM_06
+    assert result["content_property"] == {"ok": True, "shape": {"id": "str", "name": "str"}}
+    assert not result["read_reservation_booking"]["ok"]
     assert "***" not in repr(result)  # structure only, no guest values
     assert _calls(aioclient_mock, ROOMS_URL) == 2  # no retries
 

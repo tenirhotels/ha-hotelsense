@@ -41,7 +41,8 @@ from .presence import STATUS_CHECKED_IN, STATUS_CHECKED_OUT
 LOGGER = logging.getLogger(__name__)
 
 AUTH_URL = "https://connect.hopenapi.com/auth/token"
-PMS_URL = "https://connect.hopenapi.com/api/pms"
+API_URL = "https://connect.hopenapi.com/api"
+PMS_URL = f"{API_URL}/pms"
 STORAGE_KEY_ROOMS = f"{DOMAIN}.exely_rooms"
 
 STAY_CANCELLED = "cancelled"
@@ -300,7 +301,8 @@ class ExelyApi:
             return token
 
     # -- requests ---------------------------------------------------------- #
-    async def _get(self, path: str, params: dict | None = None, *, retries: int = RETRIES) -> Any:
+    async def _get(self, path: str, params: dict | None = None, *, retries: int = RETRIES,
+                   base: str = PMS_URL) -> Any:
         error: Exception | None = None
         for attempt in range(retries + 1):
             if attempt:
@@ -310,7 +312,7 @@ class ExelyApi:
             try:
                 async with asyncio.timeout(REQUEST_TIMEOUT):
                     resp = await self._session.get(
-                        f"{PMS_URL}{path}", params=params,
+                        f"{base}{path}", params=params,
                         headers={"Authorization": f"Bearer {token}"})
                     if resp.status == 401 and attempt < retries:
                         self._token = None  # expired early: one new token
@@ -467,7 +469,7 @@ class ExelyApi:
         """One request per endpoint, no retries: what Exely answers (shape, no values).
 
         For finding out why a call fails (and for Exely support: the error text
-        carries the request_id). At most 4 requests.
+        carries the request_id). At most 6 requests.
         """
         result: dict[str, Any] = {"property_id": property_id}
         try:
@@ -476,22 +478,28 @@ class ExelyApi:
             result["sign_in"] = f"{type(err).__name__}: {err}"
             return result
         result["sign_in"] = "ok"
-        calls = [("rooms", f"/v2/properties/{property_id}/rooms", None),
-                 ("rooms_max_page_size", f"/v2/properties/{property_id}/rooms",
-                  {"maxPageSize": 100})]
+        # PMS API first; Content and Read Reservation API tell whether other
+        # Exely APIs answer for this property.
+        calls = [("rooms", PMS_URL, f"/v2/properties/{property_id}/rooms", None),
+                 ("rooms_max_page_size", PMS_URL, f"/v2/properties/{property_id}/rooms",
+                  {"maxPageSize": 100}),
+                 ("content_property", f"{API_URL}/content", f"/v1/properties/{property_id}",
+                  None)]
         if booking:
-            calls.append(("reservation",
-                          f"/v2/properties/{property_id}/reservations/{booking}", None))
-        for name, path, params in calls:
+            calls += [("reservation", PMS_URL,
+                       f"/v2/properties/{property_id}/reservations/{booking}", None),
+                      ("read_reservation_booking", f"{API_URL}/read-reservation",
+                       f"/v1/properties/{property_id}/bookings/{booking}", None)]
+        for name, base, path, params in calls:
             try:
-                data = await self._get(path, params, retries=0)
+                data = await self._get(path, params, retries=0, base=base)
             except ExelyApiError as err:
                 result[name] = {"ok": False, "error": f"{type(err).__name__}: {err}"}
                 continue
             entry: dict[str, Any] = {"ok": True, "shape": shape(data)}
             if name.startswith("rooms"):
                 entry["rooms"] = len(parse_rooms(data)[0])
-            else:
+            elif "reservation" in name:
                 entry["stays"] = [asdict(s) for s in parse_reservation(data)]
             result[name] = entry
         return result

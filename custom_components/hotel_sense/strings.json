@@ -486,7 +486,7 @@
     },
     "exely_api_probe": {
       "name": "Exely API check",
-      "description": "Asks Exely once per endpoint (sign-in, room list, and the reservation if a booking number is given) and returns what Exely answers: the response structure without values, or the error text with its request_id for Exely support. At most 4 requests.",
+      "description": "Asks Exely once per endpoint (sign-in, PMS API room list, Content API property and, with a booking number, the reservation in the PMS API and the Read Reservation API) and returns what Exely answers: the response structure without values, or the error text with its request_id for Exely support. At most 6 requests.",
       "fields": {
         "config_entry_id": {
           "name": "Hotel Sense entry",
