@@ -1,12 +1,15 @@
 """Hotel Sense services: AP -> Area diagnostics/assignment, device list CSV."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import homeassistant.helpers.config_validation as cv
+from homeassistant.util import dt as dt_util
 
 from .areas import (
     access_point_macs, ap_area_report, assign_ap_areas, find_access_points, parse_mac_table,
@@ -16,6 +19,8 @@ from .const import DOMAIN
 from .device_list import CATEGORIES
 from .mac import parse_mac
 from .omada_hub import OmadaClientException
+from .history import HistoryUnavailable
+from .queries import hotel_report, room_report
 from .storage import async_get_device_store
 
 SERVICE_AP_AREA_REPORT = "ap_area_report"
@@ -28,7 +33,13 @@ SERVICE_UNBLOCK_CLIENT = "unblock_client"
 SERVICE_AP_SSIDS = "ap_ssids"
 SERVICE_SET_AP_SSID = "set_ap_ssid"
 SERVICE_EXELY_API_PROBE = "exely_api_probe"
+SERVICE_ROOM_REPORT = "room_report"
+SERVICE_HOTEL_REPORT = "hotel_report"
 ATTR_BOOKING = "booking"
+ATTR_ROOM = "room"
+ATTR_START = "start"
+ATTR_END = "end"
+ATTR_HOURS = "hours"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MAPPING = "mapping"
@@ -181,6 +192,66 @@ def async_register_services(hass: HomeAssistant) -> None:
         booking = (call.data.get(ATTR_BOOKING) or "").strip() or None
         return await receiver.api.async_probe(receiver.property_id, booking)
 
+    def _period(call: ServiceCall):
+        end = dt_util.as_utc(call.data.get(ATTR_END) or dt_util.utcnow())
+        start = call.data.get(ATTR_START)
+        start = dt_util.as_utc(start) if start else end - timedelta(hours=call.data[ATTR_HOURS])
+        if start >= end:
+            raise ServiceValidationError("start must be before end")
+        return start, end
+
+    async def _read(controller, func):
+        if controller.history is None:
+            raise ServiceValidationError("The history database is not set up (Hotel Sense options)")
+        try:
+            return await controller.history.async_read(func)
+        except HistoryUnavailable as err:
+            raise HomeAssistantError(f"History database unavailable: {err}") from err
+
+    async def room_report_service(call: ServiceCall) -> ServiceResponse:
+        controller = _controller(hass, call)
+        registry = controller.presence.registry
+        wanted = call.data[ATTR_ROOM].strip().lower()
+        room = next((r for r in registry.rooms.values()
+                     if wanted in (r.room_id.lower(), r.name.lower(), (r.number or "").lower())),
+                    None)
+        if room is None:
+            raise ServiceValidationError(f"Unknown room {call.data[ATTR_ROOM]!r}")
+        start, end = _period(call)
+        devices = (await async_get_device_store(hass)).devices
+
+        def name(mac: str) -> str | None:
+            known = devices.get(mac)  # names of the hotel's own devices only
+            return known.name if known else None
+
+        report = await _read(controller, lambda conn: room_report(conn, room.room_id, start, end,
+                                                                  name))
+        status = room.status
+        return {"room": {"room_id": room.room_id, "number": room.number, "name": room.name,
+                         "kind": room.kind,
+                         "status": None if status is None else {
+                             "value": status.value, "source": status.source,
+                             "changed_at": status.changed_at, "booking": status.booking}},
+                **report}
+
+    async def hotel_report_service(call: ServiceCall) -> ServiceResponse:
+        controller = _controller(hass, call)
+        start, end = _period(call)
+        return await _read(controller, lambda conn: hotel_report(conn, start, end))
+
+    period_fields = {
+        vol.Optional(ATTR_START): cv.datetime,
+        vol.Optional(ATTR_END): cv.datetime,
+        vol.Optional(ATTR_HOURS, default=24): vol.All(vol.Coerce(int), vol.Range(min=1, max=24 * 366)),
+    }
+    hass.services.async_register(
+        DOMAIN, SERVICE_ROOM_REPORT, room_report_service,
+        schema=vol.Schema({**entry_field, vol.Required(ATTR_ROOM): cv.string, **period_fields}),
+        supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        DOMAIN, SERVICE_HOTEL_REPORT, hotel_report_service,
+        schema=vol.Schema({**entry_field, **period_fields}),
+        supports_response=SupportsResponse.ONLY)
     hass.services.async_register(
         DOMAIN, SERVICE_EXELY_API_PROBE, exely_api_probe,
         schema=vol.Schema({**entry_field, vol.Optional(ATTR_BOOKING): cv.string}),

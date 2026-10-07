@@ -111,6 +111,7 @@ class RoomRegistry:
         self._pending_common: set[str] | None = None
         self._pending_labels: dict[str, str] = {}  # label -> target (area id or name)
         self.loaded_from_storage = False
+        self._listeners: list = []
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -129,6 +130,17 @@ class RoomRegistry:
 
     def async_save(self) -> None:
         self._store.async_delay_save(self._data, SAVE_DELAY)
+        for listener in list(self._listeners):
+            listener()
+
+    def async_add_listener(self, listener) -> None:
+        """Called after every change (rooms, kinds, labels, statuses)."""
+        self._listeners.append(listener)
+
+    def table_rows(self) -> list[dict]:
+        """The rooms as rows of the history ``rooms`` table."""
+        return [{"room_id": r.room_id, "number": r.number, "name": r.name, "kind": r.kind}
+                for r in sorted(self.rooms.values(), key=lambda r: r.room_id)]
 
     async def async_flush(self) -> None:
         """Write now (entry unload: the next setup reads the file)."""

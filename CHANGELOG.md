@@ -1,3 +1,7 @@
+# Hotel Sense 0.9.0
+- History database interface: SQL views `v1_*` (rooms, room status, room states, violations with start / end, presence, staff visits, traffic hourly / daily, Exely events, Wi-Fi events). Grafana and reports read the views, not the tables; a change of meaning gets `v2_*`. Schema version 3: the `rooms` table (number, name, kind of the room model) and the views are created automatically
+- Business queries (`queries.py`) on the views, and the actions `hotel_sense.room_report` (one room: status and state changes, violations, presence and time per category, staff visits, traffic) and `hotel_sense.hotel_report` (per room: violations, status changes, staff time, guest traffic) for a period (`hours`, or `start` / `end`)
+
 # Hotel Sense 0.8.0
 - Room model: each room (HA Area) has a Hotel Sense record with kind (room / common), number, Exely labels and its check-in status *with its origin*: value, source (manual / exely / restored), changed_at (UTC), booking (Exely) and user_id (manual change). The last change wins. Stored in `.storage/hotel_sense.rooms.<entry>`; the status no longer depends on restoring the select entity
 - Configure → Rooms: all rooms as CSV (`room_id;name;number;kind;exely_room_ids`); the common areas (Room presence) and the Exely room mapping edit the same model

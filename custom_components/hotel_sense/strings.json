@@ -523,6 +523,54 @@
           "description": "Optional: a booking number from the Exely webhook (BookingNumber) to test the reservation lookup."
         }
       }
+    },
+    "room_report": {
+      "name": "Room report",
+      "description": "What happened in a room in a period, from the history database: status changes, state changes, violations, presence and staff time per category, staff visits and traffic.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "room": {
+          "name": "Room",
+          "description": "Room number, name or ID, e.g. 06."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Start of the period (default: end minus hours)."
+        },
+        "end": {
+          "name": "End",
+          "description": "End of the period (default: now)."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "Length of the period when no start is given."
+        }
+      }
+    },
+    "hotel_report": {
+      "name": "Hotel report",
+      "description": "Per room for a period, from the history database: violations, status changes, staff time and visits, guest traffic.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Start of the period (default: end minus hours)."
+        },
+        "end": {
+          "name": "End",
+          "description": "End of the period (default: now)."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "Length of the period when no start is given."
+        }
+      }
     }
   }
 }

@@ -50,6 +50,8 @@ class PresenceManager:
         # The room model (kind, number, Exely labels, status with its origin);
         # RoomSnapshot below is the live picture of a room.
         self.registry = registry
+        self._room_rows: list[dict] | None = None
+        registry.async_add_listener(self._sync_rooms)
         self.engine = PresenceEngine()
         self.rooms: dict[str, RoomSnapshot] = {}
         self.data_stale = False
@@ -98,6 +100,7 @@ class PresenceManager:
         for unsub in unsubs:
             self.entry.async_on_unload(unsub)
         self.async_process()
+        self._sync_rooms()
 
     @callback
     def _async_options_updated(self) -> None:
@@ -144,6 +147,17 @@ class PresenceManager:
         if new:
             async_dispatcher_send(self.hass, self.signal_rooms_added, new)
         self.async_refresh()
+
+    # -- history: the room model as the ``rooms`` table ---------------------- #
+    @callback
+    def _sync_rooms(self) -> None:
+        """Write the room model to the database when number / name / kind changed."""
+        if self.history is None:
+            return
+        rows = self.registry.table_rows()
+        if rows != self._room_rows:
+            self._room_rows = rows
+            self.history.set_rooms(rows)
 
     # -- history: device in room from ... to ... ---------------------------- #
     def _update_sessions(self) -> None:

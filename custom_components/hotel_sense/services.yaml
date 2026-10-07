@@ -130,3 +130,48 @@ exely_api_probe:
       example: "20261006-9999-123456"
       selector:
         text:
+
+room_report:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    room:
+      required: true
+      example: "06"
+      selector:
+        text:
+    start:
+      selector:
+        datetime:
+    end:
+      selector:
+        datetime:
+    hours:
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 8784
+          mode: box
+
+hotel_report:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    start:
+      selector:
+        datetime:
+    end:
+      selector:
+        datetime:
+    hours:
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 8784
+          mode: box
