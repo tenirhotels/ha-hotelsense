@@ -1,4 +1,5 @@
 # Hotel Sense 0.7.0
+- History: Wi-Fi traffic per room, device category and hour (`room_traffic`, from Omada's per-client counters; database schema 2, created automatically)
 - Service health entities (diagnostic, on the controller device), for notifications and a system-status card: *Omada controller* (connectivity), *Omada webhook last message* (timestamp, with received / rejected counts), *Exely API* (not set up / OK / error, with the last error) and *History database* (connectivity, with queued / written / last error; only when the database is set up)
 
 # Hotel Sense 0.6.4

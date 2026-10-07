@@ -24,6 +24,7 @@ from .device_list import CATEGORY_FIXED
 from .history import now as history_now
 from .presence import CATEGORY_GUEST, AreaPresence, Observation, PresenceEngine, evaluate_room
 from .storage import DeviceListStore
+from .traffic import TrafficMeter
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class PresenceManager:
         self.common_areas: set[str] | None = None
         # mac -> (area_id, since): open presence sessions (history database only).
         self.sessions: dict[str, tuple[str, datetime]] = {}
+        self.traffic = TrafficMeter()
         self.load_options()
 
     @property
@@ -135,6 +137,7 @@ class PresenceManager:
         ap_areas = resolve_ap_areas(self.hass, self.controller)
         self.engine.update(dt_util.utcnow().timestamp(), self._observations(), ap_areas)
         self._update_sessions()
+        self._update_traffic()
 
         areas = ar.async_get(self.hass)
         new = []
@@ -169,6 +172,23 @@ class PresenceManager:
                          category=self.store.devices.category_of(mac) or CATEGORY_GUEST,
                          started=since, ended=now, seconds=int((now - since).total_seconds()))
 
+    # -- history: traffic per room and hour -------------------------------- #
+    def _update_traffic(self) -> None:
+        if self.history is None:
+            return
+        counters = {}
+        for mac, client in self.controller.clients.items():
+            if client.wireless:
+                raw = client.raw
+                counters[mac] = (_int(raw.get("trafficDown")), _int(raw.get("trafficUp")))
+        hour = history_now().replace(minute=0, second=0, microsecond=0)
+        tracks = self.engine.tracks
+        for row in self.traffic.update(
+                hour, counters,
+                lambda mac: tracks[mac].area_id if mac in tracks else None,
+                lambda mac: self.store.devices.category_of(mac) or CATEGORY_GUEST):
+            self.history.add("room_traffic", **row)
+
     @callback
     def async_close_sessions(self) -> None:
         """End the open sessions now (unload / stop): nothing is left unwritten."""
@@ -177,6 +197,8 @@ class PresenceManager:
         now = history_now()
         for mac, (area_id, since) in list(self.sessions.items()):
             self._end_session(mac, area_id, since, now)
+        for row in self.traffic.flush():  # this hour so far
+            self.history.add("room_traffic", **row)
 
     @callback
     def async_refresh(self) -> None:
@@ -288,3 +310,10 @@ class PresenceManager:
         if (client := self.controller.client(mac)) is not None and client.name:
             return client.name
         return mac
+
+
+def _int(value) -> int:
+    try:
+        return max(int(value or 0), 0)
+    except (TypeError, ValueError):
+        return 0
