@@ -10,6 +10,7 @@ from datetime import timedelta
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory
 
 from .ap_entity import ControllerEntity
@@ -115,3 +116,28 @@ class ExelyApiSensor(_ServiceEntity, SensorEntity):
         api = self.controller.exely.api
         return {"last_error": api.last_error, "rooms_error": api.rooms_error,
                 "last_check": api.last_check, "requests_last_hour": api.requests_last_hour()}
+
+
+class DeviceSuggestionsSensor(_ServiceEntity, SensorEntity):
+    """Number of open device identity suggestions ("new MAC is probably #7")."""
+
+    _attr_should_poll = False
+
+    def __init__(self, controller) -> None:
+        super().__init__(controller, "device_suggestions")
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, self.controller.suggestions.signal, self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> int:
+        return len(self.controller.suggestions.suggestions)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        manager = self.controller.suggestions
+        return {"status": manager.status, "updated": manager.updated, "error": manager.error,
+                "suggestions": [{k: s[k] for k in ("mac", "name", "identity", "identity_name",
+                                                   "score")}
+                                for s in manager.suggestions[:10]]}

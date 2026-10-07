@@ -66,6 +66,7 @@ class OmadaController:
         self.presence = None  # PresenceManager, set up in __init__.async_setup_entry
         self.exely = None  # ExelyReceiver, set up in __init__.async_setup_entry
         self.omada_webhook = None  # OmadaWebhook, set up in __init__.async_setup_entry
+        self.suggestions = None  # DeviceSuggestions, set up in __init__.async_setup_entry
         self.history = None  # HistoryWriter when the history database is set up
         self.async_stop_history = None  # closes presence sessions, flushes, disconnects
         self.option_scan_interval = DEFAULT_SCAN_INTERVAL
@@ -203,7 +204,7 @@ class OmadaController:
             return True
         if unique_id in {f"clients-{cid}", f"exely_last_event-{cid}", f"misplaced_devices-{cid}",
                          f"controller_online-{cid}", f"omada_webhook_last_message-{cid}",
-                         f"exely_api-{cid}"}:
+                         f"exely_api-{cid}", f"device_suggestions-{cid}"}:
             return True
         if unique_id == f"history_database-{cid}":
             return self.history is not None

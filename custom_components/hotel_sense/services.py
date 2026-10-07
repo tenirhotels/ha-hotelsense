@@ -16,7 +16,7 @@ from .areas import (
     resolve_ap_areas,
 )
 from .const import DOMAIN
-from .device_list import CATEGORIES
+from .device_list import CATEGORIES, parse_identity_id
 from .mac import parse_mac
 from .omada_hub import OmadaClientException
 from .omada_known import omada_candidates
@@ -41,6 +41,8 @@ SERVICE_DEVICE_CANDIDATES = "device_candidates"
 SERVICE_OMADA_KNOWN_DEVICES = "omada_known_devices"
 SERVICE_LINK_MAC = "link_mac"
 SERVICE_UNLINK_MAC = "unlink_mac"
+SERVICE_DEVICE_SUGGESTIONS = "device_suggestions"
+SERVICE_IGNORE_SUGGESTION = "ignore_device_suggestion"
 ATTR_BOOKING = "booking"
 ATTR_ROOM = "room"
 ATTR_START = "start"
@@ -52,6 +54,7 @@ ATTR_MIN_ROOMS_PER_DAY = "min_rooms_per_day"
 ATTR_MIN_HOURS = "min_hours"
 ATTR_SEEN_DAYS = "seen_days"
 ATTR_WIRED = "wired"
+ATTR_REFRESH = "refresh"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MAPPING = "mapping"
@@ -273,6 +276,23 @@ def async_register_services(hass: HomeAssistant) -> None:
                 "name": identity.name if identity else None,
                 "category": identity.category if identity else None, **route}
 
+    async def device_suggestions(call: ServiceCall) -> ServiceResponse:
+        manager = _controller(hass, call).suggestions
+        if manager.controller.history is None:
+            raise ServiceValidationError("The history database is not set up (Hotel Sense options)")
+        if call.data[ATTR_REFRESH]:
+            await manager.async_refresh()
+        return {"status": manager.status, "updated": manager.updated, "error": manager.error,
+                "suggestions": manager.suggestions}
+
+    async def ignore_suggestion(call: ServiceCall) -> None:
+        manager = _controller(hass, call).suggestions
+        try:
+            identity = parse_identity_id(call.data[ATTR_IDENTITY])
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
+        await manager.async_ignore(_mac(call), identity)
+
     async def link_mac(call: ServiceCall) -> ServiceResponse:
         store = await async_get_device_store(hass)
         mac = _mac(call)
@@ -333,6 +353,14 @@ def async_register_services(hass: HomeAssistant) -> None:
         schema=vol.Schema({vol.Required(ATTR_IDENTITY): cv.string,
                            vol.Required(ATTR_MAC): cv.string}),
         supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(
+        DOMAIN, SERVICE_DEVICE_SUGGESTIONS, device_suggestions,
+        schema=vol.Schema({**entry_field, vol.Optional(ATTR_REFRESH, default=True): cv.boolean}),
+        supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        DOMAIN, SERVICE_IGNORE_SUGGESTION, ignore_suggestion,
+        schema=vol.Schema({**entry_field, vol.Required(ATTR_MAC): cv.string,
+                           vol.Required(ATTR_IDENTITY): cv.string}))
     hass.services.async_register(
         DOMAIN, SERVICE_UNLINK_MAC, unlink_mac,
         schema=vol.Schema({vol.Required(ATTR_MAC): cv.string}),

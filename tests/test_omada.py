@@ -52,7 +52,8 @@ async def test_entities_are_rooms_access_points_and_controller(hass, make_entry,
     assert {f"clients-{CID}", f"misplaced_devices-{CID}", f"exely_last_event-{CID}"} <= uids
     other = {u for u in uids if not u.startswith(("room:", "ap:"))} - {
         f"clients-{CID}", f"misplaced_devices-{CID}", f"exely_last_event-{CID}",
-        f"controller_online-{CID}", f"omada_webhook_last_message-{CID}", f"exely_api-{CID}"}
+        f"controller_online-{CID}", f"omada_webhook_last_message-{CID}", f"exely_api-{CID}",
+        f"device_suggestions-{CID}"}
     assert not other
     # No per-client entities or devices any more.
     assert not [u for u in uids if u.startswith(("client:", "update:"))]

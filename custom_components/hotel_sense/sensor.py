@@ -12,7 +12,7 @@ from .ap_entity import (
 )
 from .const import DOMAIN
 from .controller import OmadaController
-from .service_entity import ExelyApiSensor, OmadaWebhookSensor
+from .service_entity import DeviceSuggestionsSensor, ExelyApiSensor, OmadaWebhookSensor
 from .room_entity import (
     ExelyLastEventSensor, MisplacedFixedDevicesSensor, async_setup_room_platform, sensor_factory,
 )
@@ -28,6 +28,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
         ExelyLastEventSensor(controller.exely, device_info),
         OmadaWebhookSensor(controller),
         ExelyApiSensor(controller),
+        DeviceSuggestionsSensor(controller),
     ])
     async_setup_ap_platform(hass, entry, async_add_entities, lambda c, mac: [
         AccessPointUptimeSensor(c, mac), AccessPointClientsSensor(c, mac)])

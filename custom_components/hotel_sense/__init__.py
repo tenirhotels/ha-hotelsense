@@ -18,6 +18,7 @@ from .history import DEFAULT_RETENTION_MONTHS, HistoryWriter, build_url
 from .exely_webhook import ExelyReceiver, async_ensure_secrets
 from .omada_webhook import OmadaWebhook, async_ensure_omada_secrets
 from .presence_manager import PresenceManager
+from .suggestions import DeviceSuggestions
 from .services import async_register_services
 from .storage import async_get_device_store
 
@@ -55,6 +56,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                           await async_get_device_store(hass), registry)
     controller.exely = ExelyReceiver(hass, entry, controller.presence)
     controller.omada_webhook = OmadaWebhook(hass, entry, controller)
+    controller.suggestions = DeviceSuggestions(hass, entry, controller,
+                                               await async_get_device_store(hass))
+    await controller.suggestions.async_load()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = controller
     controller.async_cleanup_registry()
 
@@ -66,6 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controller.omada_webhook.async_start()
     if controller.history is not None:
         controller.history.async_start()
+        controller.suggestions.async_start()
 
         stopped = False
 

@@ -272,3 +272,29 @@ unlink_mac:
       example: "AA-BB-CC-DD-EE-FF"
       selector:
         text:
+device_suggestions:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    refresh:
+      default: true
+      selector:
+        boolean:
+ignore_device_suggestion:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    mac:
+      required: true
+      example: "AA-BB-CC-DD-EE-FF"
+      selector:
+        text:
+    identity:
+      required: true
+      example: "7"
+      selector:
+        text:

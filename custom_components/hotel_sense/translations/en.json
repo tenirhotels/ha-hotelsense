@@ -87,7 +87,8 @@
           "device_delete": "Delete devices",
           "device_import": "Import CSV",
           "device_export": "Export CSV",
-          "finish": "Done"
+          "finish": "Done",
+          "device_suggestions": "Device suggestions (new MACs)"
         }
       },
       "device_add": {
@@ -231,6 +232,10 @@
         "data": {
           "csv": "Rooms (CSV)"
         }
+      },
+      "device_suggestions": {
+        "title": "Device suggestions",
+        "description": "New private MACs that look like a staff device on the list. Nothing is linked unless you choose so. A check that holds adds its weight, one that fails takes it away; '?' = not enough data yet.\n\n{suggestions}"
       }
     },
     "error": {
@@ -249,7 +254,9 @@
       "invalid_identity": "The chosen device is no longer on the list"
     },
     "abort": {
-      "no_devices": "The device list is empty."
+      "no_devices": "The device list is empty.",
+      "no_suggestions": "No suggestions now: no new MAC looks like a device on the list.",
+      "suggestions_need_history": "Suggestions need the history database (Configure → History database)."
     }
   },
   "selector": {
@@ -346,6 +353,9 @@
           "ok": "OK",
           "error": "Error"
         }
+      },
+      "device_suggestions": {
+        "name": "Device suggestions"
       }
     },
     "select": {
@@ -676,6 +686,38 @@
         "mac": {
           "name": "MAC address",
           "description": "The MAC to unlink."
+        }
+      }
+    },
+    "device_suggestions": {
+      "name": "Device suggestions",
+      "description": "New private (random) MACs that look like a staff device on the list - same name, the old MAC went quiet before, same zones, hours and Wi-Fi. Never linked automatically: link with Link MAC to device or turn down with Ignore device suggestion. Needs the history database.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "refresh": {
+          "name": "Refresh",
+          "description": "Recompute now (otherwise the hourly result)."
+        }
+      }
+    },
+    "ignore_device_suggestion": {
+      "name": "Ignore device suggestion",
+      "description": "This MAC is not this device: the pair is not suggested again.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "mac": {
+          "name": "MAC address",
+          "description": "The suggested MAC."
+        },
+        "identity": {
+          "name": "Device number",
+          "description": "The device it was suggested for."
         }
       }
     }
