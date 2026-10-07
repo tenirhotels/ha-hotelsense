@@ -1,3 +1,7 @@
+# Hotel Sense 0.11.0
+- Action `hotel_sense.omada_known_devices`: staff devices missing from the device list, found right away in Omada's known-client list - many hours on the Wi-Fi in total (`min_hours`, 500) and seen recently (`seen_days`, 30). With the Omada name, hours, traffic, the spread of all clients by hours and a CSV for `hotel_sense.import_devices`
+- Fix: `device_candidates` failed once the device list had devices (0.10.0)
+
 # Hotel Sense 0.10.0
 - Action `hotel_sense.device_route`: where a device was in a period, in order - zone, arrival, departure, time there and the time off Wi-Fi before it (short drops in the same zone merged, the current zone included). Built on the presence sessions already in the history database
 - Action `hotel_sense.device_candidates`: devices missing from the device list that look like staff (several guest rooms in one day, or back day after day without living in one guest room) or fixed equipment (always on in one zone), with the reasons, random-MAC flag, SSIDs and a CSV ready for `hotel_sense.import_devices`

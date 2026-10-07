@@ -340,6 +340,15 @@ The database user needs the right to create views (the MariaDB add-on's
   reasons and an `import_csv` to check, add names to and paste into
   `hotel_sense.import_devices`. Rooms do not hear each other's devices here, so
   a device in several guest rooms really went there.
+* `hotel_sense.omada_known_devices` — no history needed: devices missing from
+  the device list that Omada's known-client list (Insight → Known Clients)
+  shows with at least `min_hours` (500) on the Wi-Fi in total and seen in the
+  last `seen_days` (30). Guests stay days; staff, months and years. With the
+  Omada name, hours, traffic, last seen, how all Wi-Fi clients spread by
+  total hours (to pick the threshold) and an `import_csv` with the Omada names.
+  Omada keeps no "first seen" there and forgets clients after its data
+  retention; phones with a rotating private MAC appear as several short-lived
+  clients.
 
 ## Installation
 

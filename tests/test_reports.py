@@ -246,6 +246,16 @@ async def test_device_actions(hass, make_entry, patch_api, db_url):  # noqa: F81
     found = await hass.services.async_call(DOMAIN, "device_candidates", {}, blocking=True,
                                            return_response=True)
     assert found["candidates"] == [] and found["import_csv"] == ""
+    # With devices in the list (the list yields devices, not MACs).
+    await hass.services.async_call(DOMAIN, "import_devices",
+                                   {"csv": f"mac,name,category\n{MAID},Maid,employee\n"},
+                                   blocking=True, return_response=True)
+    found = await hass.services.async_call(DOMAIN, "device_candidates", {}, blocking=True,
+                                           return_response=True)
+    assert found["candidates"] == []
+    route = await hass.services.async_call(DOMAIN, "device_route", {"mac": MAID}, blocking=True,
+                                           return_response=True)
+    assert (route["name"], route["category"], route["stops"]) == ("Maid", "employee", [])
 
 
 async def test_candidate_csv_imports(hass, make_entry, patch_api, db_url, tmp_path):  # noqa: F811

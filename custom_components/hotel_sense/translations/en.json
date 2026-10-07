@@ -619,6 +619,28 @@
           "description": "A device in at least this many guest rooms on one day is a candidate."
         }
       }
+    },
+    "omada_known_devices": {
+      "name": "Staff devices from Omada",
+      "description": "Devices not in the device list that Omada's known-client list shows with many hours on the Wi-Fi and seen recently: guests stay days, staff months and years. Works right away, without the history database. Returns the Omada name, hours, traffic, last seen, how all clients spread by hours, and a CSV for Import devices once checked.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "min_hours": {
+          "name": "Minimum hours",
+          "description": "Total hours connected for a device to count as the hotel's own (500 h is three weeks around the clock - longer than a guest stays)."
+        },
+        "seen_days": {
+          "name": "Seen within days",
+          "description": "Only devices Omada saw in this many last days (staff who left drop out)."
+        },
+        "wired": {
+          "name": "Include wired",
+          "description": "Also list wired clients (presence counts Wi-Fi only)."
+        }
+      }
     }
   }
 }
