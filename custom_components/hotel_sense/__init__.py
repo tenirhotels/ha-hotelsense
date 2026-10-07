@@ -8,10 +8,12 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
-    CONF_DB_HOST, CONF_DB_NAME, CONF_DB_PASSWORD, CONF_DB_PORT, CONF_DB_RETENTION,
+    CONF_COMMON_AREAS, CONF_DB_HOST, CONF_DB_NAME, CONF_EXELY_ROOM_MAP, CONF_DB_PASSWORD, CONF_DB_PORT, CONF_DB_RETENTION,
     CONF_DB_USERNAME, DEFAULT_DB_PORT, DOMAIN, LEGACY_OPTIONS, PLATFORMS,
 )
 from .controller import OmadaController
+from .exely import parse_room_map
+from .rooms import RoomRegistry
 from .history import DEFAULT_RETENTION_MONTHS, HistoryWriter, build_url
 from .exely_webhook import ExelyReceiver, async_ensure_secrets
 from .omada_webhook import OmadaWebhook, async_ensure_omada_secrets
@@ -33,13 +35,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if LEGACY_OPTIONS & set(entry.options):
         hass.config_entries.async_update_entry(entry, options={
             k: v for k, v in entry.options.items() if k not in LEGACY_OPTIONS})
+    # The room model; the room options of 0.7 and older move into it once.
+    registry = RoomRegistry(hass, entry.entry_id)
+    await registry.async_load()
+    entry.async_on_unload(registry.async_flush)
+    if CONF_COMMON_AREAS in entry.options or CONF_EXELY_ROOM_MAP in entry.options:
+        registry.import_legacy(entry.options.get(CONF_COMMON_AREAS),
+                               parse_room_map(entry.options.get(CONF_EXELY_ROOM_MAP)))
+        hass.config_entries.async_update_entry(entry, options={
+            k: v for k, v in entry.options.items()
+            if k not in (CONF_COMMON_AREAS, CONF_EXELY_ROOM_MAP)})
     # Exely secrets first: the controller's update listener reacts to entry updates.
     async_ensure_secrets(hass, entry)
     async_ensure_omada_secrets(hass, entry)
     controller = OmadaController(hass, entry)
     await controller.async_setup()
     controller.history = history_writer(hass, entry)
-    controller.presence = PresenceManager(hass, entry, controller, await async_get_device_store(hass))
+    controller.presence = PresenceManager(hass, entry, controller,
+                                          await async_get_device_store(hass), registry)
     controller.exely = ExelyReceiver(hass, entry, controller.presence)
     controller.omada_webhook = OmadaWebhook(hass, entry, controller)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = controller

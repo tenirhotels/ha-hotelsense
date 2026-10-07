@@ -128,11 +128,29 @@ shows with the event's status change. If the API fails, the event shows
 `api_error`. Only room stay IDs, statuses and dates are used; diagnostics show
 the response *structure* without values, plus request counters.
 
+### Room model (Configure → Rooms)
+
+Every HA Area with access points becomes a Hotel Sense room. Hotel Sense
+keeps its own record of it (the Area is how HA shows it):
+
+| Field | |
+|---|---|
+| `room_id` | = the area ID (entity IDs and the history use it) |
+| `kind` | `room` (status, violations) or `common` (presence only) |
+| `number` | room number for reports (from the Area name, editable) |
+| `exely_room_ids` | the room's Exely roomId and / or Exely room name |
+| `status` | `value`, `source` (manual / exely / restored), `changed_at` (UTC), `booking`, `user_id` |
+
+The last status change wins, whatever its source; every change is also in the
+history database. The access points of a room are those in its Area. *Rooms*
+in the options edits all rooms as CSV (`room_id;name;number;kind;exely_room_ids`);
+*Room presence → common areas* and the *Exely room mapping* edit the same model.
+
 ### Entities per room (`room_01` = HA area ID)
 
 | Entity | Meaning |
 |---|---|
-| `select.room_01_status` | Room status: `checked_in` / `checked_out`; manual for now, set by the Exely PMS check-in/check-out webhook in Stage D; restored after restart |
+| `select.room_01_status` | Room status: `checked_in` / `checked_out`, manual or from Exely; attributes `source`, `changed_at`, `booking`, `user_id` (from the room model) |
 | `binary_sensor.room_01_guest_presence` | Guest or unknown Wi-Fi device in the room |
 | `binary_sensor.room_01_employee_presence` | Employee device in the room |
 | `binary_sensor.room_01_violation` | Possible violation (red on the dashboard) |

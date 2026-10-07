@@ -31,9 +31,9 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_EXELY_API_KEY, CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_EXELY_PROPERTY_ID,
-    CONF_EXELY_ROOM_MAP, CONF_EXELY_WEBHOOK_ID, DOMAIN, EVENT_EXELY, STATUS_SOURCE_EXELY,
+    CONF_EXELY_WEBHOOK_ID, DOMAIN, EVENT_EXELY, STATUS_SOURCE_EXELY,
 )
-from .exely import ExelyEvent, parse_event, parse_room_map, room_number
+from .exely import ExelyEvent, parse_event, room_number
 from .exely_api import STAY_CANCELLED, ExelyApi, ExelyApiError, RoomStay
 
 LOGGER = logging.getLogger(__name__)
@@ -249,14 +249,16 @@ class ExelyReceiver:
     def resolve_room(self, label: str) -> str | None:
         """Exely room label -> area_id of a hotel room (not a common area)."""
         rooms = {a: r for a, r in self.manager.rooms.items() if not r.is_common}
-        mapped = parse_room_map(self.entry.options.get(CONF_EXELY_ROOM_MAP)).get(label.strip().lower())
-        target = mapped or label
+        registry = self.manager.registry
+        if (room := registry.find_by_exely_label(label)) is not None:
+            # Explicit mapping (room model): a common area is not a hotel room.
+            return room.room_id if room.room_id in rooms else None
+        if registry.is_pending_label(label):
+            return None  # mapped to a room that does not exist: do not guess
         areas = ar.async_get(self.hass)
-        area = areas.async_get_area(target) or areas.async_get_area_by_name(target)
+        area = areas.async_get_area(label) or areas.async_get_area_by_name(label)
         if area and area.id in rooms:
             return area.id
-        if mapped:
-            return None  # explicit mapping to an unknown room: do not guess
         number = room_number(label)
         matches = [a for a, r in rooms.items() if number is not None and room_number(r.name) == number]
         return matches[0] if len(matches) == 1 else None

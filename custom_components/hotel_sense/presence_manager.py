@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -14,7 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .areas import resolve_ap_areas, resolve_area
 from .const import (
-    CONF_COMMON_AREAS, CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE,
+    CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE,
     CONF_SLEEP_TIMEOUT, DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE,
     DEFAULT_SLEEP_TIMEOUT, DOMAIN,
     EVENT_ROOM_STATE_CHANGED, STATUS_SOURCE_MANUAL, STATUS_SOURCE_RESTORED,
@@ -22,14 +21,13 @@ from .const import (
 from .device_kind import resolve_kind
 from .device_list import CATEGORY_FIXED
 from .history import now as history_now
+from .rooms import RoomRegistry, StatusValue
 from .presence import CATEGORY_GUEST, AreaPresence, Observation, PresenceEngine, evaluate_room
 from .storage import DeviceListStore
 from .traffic import TrafficMeter
 
 LOGGER = logging.getLogger(__name__)
 
-# Default for "which areas are not hotel rooms" until the owner sets it.
-_ROOM_NAME = re.compile(r"^\s*(room|номер)\b", re.IGNORECASE)
 
 
 @dataclass
@@ -44,18 +42,17 @@ class RoomSnapshot:
 
 class PresenceManager:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller,
-                 store: DeviceListStore) -> None:
+                 store: DeviceListStore, registry: RoomRegistry) -> None:
         self.hass = hass
         self.entry = entry
         self.controller = controller
         self.store = store
+        # The room model (kind, number, Exely labels, status with its origin);
+        # RoomSnapshot below is the live picture of a room.
+        self.registry = registry
         self.engine = PresenceEngine()
         self.rooms: dict[str, RoomSnapshot] = {}
-        self.statuses: dict[str, str] = {}
-        # area_id -> (source, changed_at ISO): who set the status and when.
-        self.status_origin: dict[str, tuple[str, str | None]] = {}
         self.data_stale = False
-        self.common_areas: set[str] | None = None
         # mac -> (area_id, since): open presence sessions (history database only).
         self.sessions: dict[str, tuple[str, datetime]] = {}
         self.traffic = TrafficMeter()
@@ -89,8 +86,6 @@ class PresenceManager:
             min_rssi=min_rssi if min_rssi < 0 else None,
             sleep_timeout=sleep * 60 if sleep > 0 else None,
         )
-        common = options.get(CONF_COMMON_AREAS)
-        self.common_areas = set(common) if common is not None else None
 
     @callback
     def async_start(self) -> None:
@@ -106,19 +101,16 @@ class PresenceManager:
 
     @callback
     def _async_options_updated(self) -> None:
-        old_common = self.common_areas
         self.load_options()
-        if self.common_areas != old_common and self.rooms:
-            # Rooms and common areas expose different entities: rebuild them.
-            self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-            return
         self.async_refresh()
 
     # -- processing ------------------------------------------------------- #
     def is_common_area(self, area_id: str, name: str) -> bool:
-        if self.common_areas is not None:
-            return area_id in self.common_areas
-        return not _ROOM_NAME.match(name or "")
+        return self.registry.ensure(area_id, name).is_common
+
+    def status_of(self, area_id: str) -> StatusValue | None:
+        room = self.registry.get(area_id)
+        return room.status if room else None
 
     def _observations(self) -> list[Observation]:
         return [Observation(mac, client.ap_mac, client.rssi, client.ssid, client.power_save)
@@ -211,7 +203,8 @@ class PresenceManager:
                 room.name = area.name
             room.is_common = self.is_common_area(room.area_id, room.name)
             room.presence = by_area.get(room.area_id, AreaPresence())
-            room.status = self.statuses.get(room.area_id)
+            status = self.status_of(room.area_id)
+            room.status = status.value if status else None
             old = room.state
             room.state = None if room.is_common else evaluate_room(room.status, room.presence)
             if old is not None and room.state is not None and old != room.state:
@@ -233,17 +226,22 @@ class PresenceManager:
 
     @callback
     def async_set_status(self, area_id: str, status: str, source: str = STATUS_SOURCE_MANUAL,
-                         changed_at: str | None = None, booking: str | None = None) -> None:
-        """Set a room status. ``source``: manual / exely / restored (after a restart)."""
-        if self.statuses.get(area_id) == status:
-            return
-        self.statuses[area_id] = status
+                         changed_at: str | None = None, booking: str | None = None,
+                         user_id: str | None = None) -> None:
+        """Set a room status; the last change wins, whatever its source.
+
+        ``source``: manual / exely / restored (status from before 0.8, kept by
+        the select entity). ``changed_at`` is kept only for restored statuses.
+        """
         if source != STATUS_SOURCE_RESTORED:
-            changed_at = dt_util.utcnow().isoformat()
-            if self.history is not None:
-                self.history.add("room_status", area_id=area_id, status=status, source=source,
-                                 booking=booking)
-        self.status_origin[area_id] = (source, changed_at)
+            changed_at = None
+        if not self.registry.set_status(area_id, status, source, changed_at=changed_at,
+                                        booking=booking, user_id=user_id,
+                                        stamp=source != STATUS_SOURCE_RESTORED):
+            return
+        if source != STATUS_SOURCE_RESTORED and self.history is not None:
+            self.history.add("room_status", area_id=area_id, status=status, source=source,
+                             booking=booking)
         self.async_refresh()
 
     # -- helpers for entities -------------------------------------------- #
