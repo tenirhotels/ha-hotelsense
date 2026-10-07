@@ -11,11 +11,13 @@ names only for the hotel's own devices (employee / fixed), never for guests.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable
-from datetime import datetime, timezone
+from collections.abc import Callable, Collection
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import DateTime, bindparam, text
 from sqlalchemy.engine import Connection
+
+from .mac import is_random_mac
 
 CATEGORIES = ("guest", "employee", "fixed")
 
@@ -132,3 +134,155 @@ def hotel_report(conn: Connection, start: datetime, end: datetime) -> dict:
         room(r["room_id"]).update(guest_down_bytes=int(r["d"] or 0), guest_up_bytes=int(r["u"] or 0))
     return {"period": {"start": _iso(start), "end": _iso(end)},
             "rooms": dict(sorted(rooms.items(), key=lambda kv: (kv[1]["number"] or "", kv[0])))}
+
+
+# -- devices: routes and unregistered staff / fixed devices ------------------ #
+
+_SESSIONS = ("SELECT p.client_mac, p.room_id, p.number, p.name, r.kind, p.started, p.ended "
+             "FROM v1_presence p LEFT JOIN v1_rooms r ON r.room_id = p.room_id "
+             "WHERE p.started < :end AND p.ended > :start")
+
+
+def _zone(row) -> dict:
+    return {"room_id": row["room_id"], "number": row["number"],
+            "name": row["name"] or row["room_id"], "kind": row["kind"]}
+
+
+def device_route(conn: Connection, mac: str, start: datetime, end: datetime,
+                 current: tuple[str, datetime] | None = None, merge_gap: int = 300) -> dict:
+    """Where one device was in the period, in order.
+
+    ``current`` is the session still open in memory (area_id, since) - sessions
+    reach the database only when they end. Stops in the same zone less than
+    ``merge_gap`` seconds apart are merged (a phone that briefly dropped off);
+    ``gap_seconds`` is the time the device was nowhere before a stop.
+    """
+    start, end = _naive(start), _naive(end)
+    rows = _rows(conn, _SESSIONS + " AND p.client_mac = :mac ORDER BY p.started",
+                 start=start, end=end, mac=mac)
+    if current is not None and _naive(current[1]) < end:
+        zone = next(iter(_rows(conn, "SELECT room_id, number, name, kind FROM v1_rooms "
+                                     "WHERE room_id = :room", room=current[0])), None)
+        rows.append({"room_id": current[0], "number": zone and zone["number"],
+                     "name": zone and zone["name"], "kind": zone and zone["kind"],
+                     "started": _naive(current[1]), "ended": None})
+
+    stops: list[dict] = []
+    for row in rows:
+        started = max(_dt(row["started"]), start)
+        ended = min(_dt(row["ended"]) or end, end)
+        last = stops[-1] if stops else None
+        if last and last["room_id"] == row["room_id"] \
+                and (started - last["_ended"]).total_seconds() < merge_gap:
+            last["_ended"], last["open"] = max(last["_ended"], ended), row["ended"] is None
+            continue
+        gap = int((started - last["_ended"]).total_seconds()) if last else None
+        stops.append({**_zone(row), "_started": started, "_ended": ended,
+                      "open": row["ended"] is None, "gap_seconds": max(gap, 0) if gap else gap})
+
+    zones: dict[str, int] = defaultdict(int)
+    for stop in stops:
+        stop["seconds"] = int((stop["_ended"] - stop["_started"]).total_seconds())
+        stop["started"], stop["ended"] = _iso(stop.pop("_started")), _iso(stop.pop("_ended"))
+        if stop.pop("open"):
+            stop["ended"] = None  # still there
+        zones[stop["room_id"]] += stop["seconds"]
+    return {
+        "mac": mac,
+        "period": {"start": _iso(start), "end": _iso(end)},
+        "stops": stops,
+        "seconds_per_zone": dict(sorted(zones.items(), key=lambda kv: -kv[1])),
+        "guest_rooms_visited": len({s["room_id"] for s in stops if s["kind"] == "room"}),
+    }
+
+
+def _days(started: datetime, ended: datetime):
+    day = started.date()
+    while day <= (ended - timedelta(microseconds=1)).date():
+        yield day
+        day += timedelta(days=1)
+
+
+def device_candidates(conn: Connection, start: datetime, end: datetime,
+                      known: Collection[str], *, min_days: int = 5,
+                      min_rooms_per_day: int = 3, limit: int = 50) -> dict:
+    """Devices not in the device list that behave like the hotel's own.
+
+    Guests stay a few nights, mostly in their own room; staff come back day
+    after day and go from room to room. Per unknown device:
+
+    * ``fixed``: seen on ``min_days`` days or more, 90 % of the time in one zone
+      and about all day (20 h+ per day seen) - a TV, a printer, a router.
+    * ``employee``: in ``min_rooms_per_day`` guest rooms or more on one day
+      (rooms do not hear each other's devices, so this is real movement), or
+      seen on ``min_days`` days or more without living in one guest room (a
+      long-staying guest spends most of the time in their room).
+
+    ``import_csv`` has the candidates in the device-list CSV format (names
+    empty) for ``hotel_sense.import_devices`` once checked.
+    """
+    start, end = _naive(start), _naive(end)
+    known = set(known)
+    per_mac: dict[str, dict] = {}
+    for row in _rows(conn, _SESSIONS, start=start, end=end):
+        mac = row["client_mac"]
+        if mac in known:
+            continue
+        started, ended = max(_dt(row["started"]), start), min(_dt(row["ended"]), end)
+        seconds = max(int((ended - started).total_seconds()), 0)
+        d = per_mac.setdefault(mac, {"days": set(), "zones": defaultdict(int), "zone": {},
+                                     "rooms_per_day": defaultdict(set)})
+        d["zones"][row["room_id"]] += seconds
+        d["zone"][row["room_id"]] = _zone(row)
+        for day in _days(started, ended):
+            d["days"].add(day)
+            if row["kind"] == "room":
+                d["rooms_per_day"][day].add(row["room_id"])
+    ssids: dict[str, set[str]] = defaultdict(set)
+    if per_mac:
+        for row in _rows(conn, "SELECT DISTINCT client_mac, ssid FROM v1_wifi_events "
+                               "WHERE ts >= :start AND ts < :end AND ssid IS NOT NULL",
+                         start=start, end=end):
+            if row["client_mac"] in per_mac:
+                ssids[row["client_mac"]].add(row["ssid"])
+
+    candidates = []
+    for mac, d in per_mac.items():
+        total = sum(d["zones"].values())
+        if not total:
+            continue
+        top_id = max(d["zones"], key=d["zones"].get)
+        top, share = d["zone"][top_id], d["zones"][top_id] / total
+        days = len(d["days"])
+        hours_per_day = total / 3600 / days
+        rooms_per_day = max((len(r) for r in d["rooms_per_day"].values()), default=0)
+        guest_rooms = len({r for rooms in d["rooms_per_day"].values() for r in rooms})
+        reasons, suggest = [], None
+        if days >= min_days and share >= 0.9 and hours_per_day >= 20:
+            suggest = "fixed"
+            reasons.append(f"always on in {top['name']}: {days} days, "
+                           f"{hours_per_day:.0f} h a day, {share:.0%} of the time there")
+        else:
+            if rooms_per_day >= min_rooms_per_day:
+                suggest = "employee"
+                reasons.append(f"{rooms_per_day} guest rooms in one day")
+            if days >= min_days and not (top["kind"] == "room" and share >= 0.6):
+                suggest = "employee"
+                reasons.append(f"seen on {days} days, mostly in {top['name']} ({share:.0%})")
+        if suggest is None:
+            continue
+        candidates.append({
+            "mac": mac, "suggest": suggest, "reasons": reasons, "days": days,
+            "hours": round(total / 3600, 1), "guest_rooms": guest_rooms,
+            "max_guest_rooms_per_day": rooms_per_day,
+            "main_zone": top["name"], "main_zone_share": round(share, 2),
+            "random_mac": is_random_mac(mac), "ssids": sorted(ssids.get(mac, ())),
+        })
+    candidates.sort(key=lambda c: (c["suggest"] != "fixed", -c["days"],
+                                   -c["max_guest_rooms_per_day"], c["mac"]))
+    candidates = candidates[:limit]
+    csv_lines = ["mac,name,category,note"] + [
+        f"{c['mac']},,{c['suggest']},{c['reasons'][0].replace(',', ';')}" for c in candidates]
+    return {"period": {"start": _iso(start), "end": _iso(end)},
+            "candidates": candidates,
+            "import_csv": "\n".join(csv_lines) + "\n" if candidates else ""}
