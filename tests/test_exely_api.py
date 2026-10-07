@@ -448,3 +448,51 @@ async def test_options_require_secret_and_property(hass, make_entry, patch_api, 
         CONF_EXELY_CLIENT_ID: "client", CONF_EXELY_CLIENT_SECRET: "s"})
     assert result["errors"] == {CONF_EXELY_PROPERTY_ID: "exely_property_required"}
     assert aioclient_mock.call_count == 0
+
+
+async def test_errors_carry_exely_explanation(hass, aioclient_mock, no_sleep):
+    aioclient_mock.post(AUTH_URL, status=400, text='{"error": "invalid_client", "secret": "secret"}')
+    with pytest.raises(ExelyAuthError, match="HTTP 400: .*invalid_client") as err:
+        await _client(hass).async_reservation(PROP, BOOKING)
+    assert "secret" not in str(err.value)  # the client secret is never echoed
+
+
+async def test_non_json_answer_is_an_api_error(hass, aioclient_mock, no_sleep):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(ROOMS_URL, text="<html>maintenance</html>")
+    with pytest.raises(ExelyApiError, match="not JSON"):
+        await _client(hass).async_rooms(PROP)
+
+
+async def test_options_show_why_the_check_failed(hass, make_entry, patch_api, aioclient_mock,
+                                                 no_sleep, caplog):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(ROOMS_URL, status=400, text='{"message": "maxPageSize is invalid"}')
+    entry = await _exely_hotel(hass, make_entry)
+    result = await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client",
+                                           CONF_EXELY_CLIENT_SECRET: "secret",
+                                           CONF_EXELY_PROPERTY_ID: PROP})
+    assert result["errors"] == {"base": "exely_cannot_connect"}
+    assert "maxPageSize is invalid" in result["description_placeholders"]["status"]
+    assert "Exely API check failed" in caplog.text and "HTTP 400" in caplog.text
+
+
+async def test_menu_and_page_show_what_is_set_up(hass, make_entry, patch_api, exely):
+    entry = await _exely_hotel(hass, make_entry)
+    menu = await _options_menu(hass, entry)
+    placeholders = menu["description_placeholders"]
+    assert placeholders["exely_api"] == "not set up"
+    assert placeholders["database"] == "not set up"
+    assert placeholders["omada_webhook"] == "no messages yet"
+    assert placeholders["exely_webhook"] == "no events yet"
+
+    await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client-1234",
+                                  CONF_EXELY_CLIENT_SECRET: "secret", CONF_EXELY_PROPERTY_ID: PROP})
+    menu = await _options_menu(hass, entry)
+    status = menu["description_placeholders"]["exely_api"]
+    assert status.startswith(f"set up (client ID clie…, property {PROP})")
+    assert "last check: OK" in status and "2 rooms" in status
+    assert "client-1234" not in status and "secret" not in status
+    page = await _options_menu(hass, entry, "exely_api")
+    assert page["description_placeholders"]["status"] == status
+    assert page["description_placeholders"]["secret_saved"] == "yes"

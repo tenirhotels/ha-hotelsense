@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -69,6 +70,8 @@ from .exely_api import ExelyApiError, ExelyAuthError, ExelyNotFound
 from . import history
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
 from .storage import async_get_device_store
+
+LOGGER = logging.getLogger(__name__)
 
 CONF_MAC = "mac"
 CONF_NAME = "name"
@@ -180,7 +183,43 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             menu_options=["device_tracker", "omada_webhook", "presence", "device_list", "exely",
                           "exely_api", "database"],
+            description_placeholders={
+                "omada_webhook": self._omada_webhook_status(),
+                "exely_webhook": self._exely_webhook_status(),
+                "exely_api": self._exely_api_status(),
+                "database": self._database_status(),
+            },
         )
+
+    # Current state of each part, shown in the menu and on its page: what is
+    # already set up and whether it works.
+    def _omada_webhook_status(self) -> str:
+        hook = self.controller.omada_webhook
+        if not hook.received:
+            return "no messages yet"
+        return f"working, {hook.received} messages received"
+
+    def _exely_webhook_status(self) -> str:
+        last = self.controller.exely.last
+        if not last:
+            return "no events yet"
+        return f"last event {last.get('received', '')[:16].replace('T', ' ')} UTC: {last['result']}"
+
+    def _exely_api_status(self) -> str:
+        entry = self.config_entry
+        client_id = entry.data.get(CONF_EXELY_CLIENT_ID)
+        api = self.controller.exely.api
+        if not client_id:
+            # A failed check is not saved: still say why it failed.
+            return f"not set up; last error: {api.last_error}" if api.last_error else "not set up"
+        parts = [f"set up (client ID {client_id[:4]}…, property "
+                 f"{entry.data.get(CONF_EXELY_PROPERTY_ID) or '?'})"]
+        if api.last_error:
+            parts.append(f"last error: {api.last_error}")
+        elif api.last_check:
+            parts.append(f"last check: {api.last_check}")
+        parts.append(f"requests in the last hour: {api.requests_last_hour()}")
+        return "; ".join(parts)
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Polling: how often the controller is asked for its clients."""
@@ -479,6 +518,9 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_EXELY_PROPERTY_ID] = "exely_property_not_found"
                 except ExelyApiError:
                     errors["base"] = "exely_cannot_connect"
+                if errors:
+                    LOGGER.warning("Exely API check failed: %s",
+                                           self.controller.exely.api.last_error)
                 if not errors:
                     return await self._update_options()
                 self.hass.config_entries.async_update_entry(entry, data=old)
@@ -497,7 +539,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                              default=current.get(CONF_EXELY_PROPERTY_ID) or ""): str,
             }),
             description_placeholders={
-                "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no"},
+                "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no",
+                "status": self._exely_api_status()},
         )
 
     # ------------------------------------------------------------------ #
@@ -530,7 +573,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                 await self.hass.async_add_executor_job(history.check_connection, url)
             except Exception as err:  # noqa: BLE001 - shown as a form error
                 errors["base"] = f"db_{history.error_reason(err)}"
-                history.LOGGER.warning("History database check failed: %s",
+                LOGGER.warning("History database check failed: %s",
                                        str(err).splitlines()[0][:300])
             else:
                 self.hass.config_entries.async_update_entry(entry, data={**data, **db})
@@ -566,6 +609,6 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
     def _database_status(self) -> str:
         writer = self.controller.history
         if writer is None:
-            return "off"
+            return "not set up"
         state = "connected" if writer.connected else (writer.last_error or "not connected yet")
         return f"{state}; rows written: {writer.written}, queued: {writer.queued}"

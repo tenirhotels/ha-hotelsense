@@ -56,7 +56,8 @@
           "omada_webhook": "Вебхук Omada (мгновенные обновления)",
           "exely_api": "Exely API (номер по брони)",
           "database": "База истории (MariaDB)"
-        }
+        },
+        "description": "Текущее состояние:\n• Вебхук Omada: {omada_webhook}\n• Вебхук Exely: {exely_webhook}\n• Exely API: {exely_api}\n• База истории: {database}"
       },
       "presence": {
         "title": "Присутствие в номерах",
@@ -190,7 +191,7 @@
       },
       "exely_api": {
         "title": "Exely Connect API",
-        "description": "Вебхуки Exely называют бронь, а не номер. С доступом к API Hotel Sense находит номер сам: один запрос на бронь (запоминается на время проживания) и список номеров раз в сутки; не больше 30 запросов в час.\n\nВ Exely: Настройки отеля → Подключение по API → ваше подключение: client_id и client_secret с правом чтения броней и номеров (PMS API). ID отеля: идентификатор отеля в Exely (PropertyId в событиях вебхука).\n\nПри сохранении доступ проверяется одним запросом списка номеров. Оставьте client_id пустым, чтобы отключить API. Client secret сохранён: {secret_saved}.",
+        "description": "Вебхуки Exely называют бронь, а не номер. С доступом к API Hotel Sense находит номер сам: один запрос на бронь (запоминается на время проживания) и список номеров раз в сутки; не больше 30 запросов в час.\n\nВ Exely: Настройки отеля → Подключение по API → ваше подключение: client_id и client_secret с правом чтения броней и номеров (PMS API). ID отеля: идентификатор отеля в Exely (PropertyId в событиях вебхука).\n\nПри сохранении доступ проверяется одним запросом списка номеров. Оставьте client_id пустым, чтобы отключить API. Сейчас: {status}.\nClient secret сохранён: {secret_saved}.",
         "data": {
           "exely_client_id": "Client ID",
           "exely_client_secret": "Client secret",
@@ -224,7 +225,7 @@
       "exely_property_required": "Введите ID отеля.",
       "exely_invalid_auth": "Exely отклонил client ID или secret.",
       "exely_property_not_found": "В Exely нет отеля с таким ID (или доступ на него не распространяется).",
-      "exely_cannot_connect": "Exely не ответил; попробуйте позже или смотрите журнал Home Assistant.",
+      "exely_cannot_connect": "Exely не ответил или вернул ошибку; причина ниже в «Сейчас» и в журнале Home Assistant.",
       "db_auth": "База отклонила пользователя или пароль (или у пользователя нет прав на эту базу).",
       "db_database": "Нет базы с таким именем (создайте её в настройках аддона MariaDB).",
       "db_connect": "Сервер базы не отвечает по этому хосту и порту (аддон MariaDB запущен?)."
