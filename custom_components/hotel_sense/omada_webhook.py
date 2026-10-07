@@ -15,6 +15,7 @@ import hmac
 import logging
 import secrets
 from collections import deque
+from dataclasses import asdict
 from http import HTTPStatus
 from json import JSONDecodeError
 
@@ -27,6 +28,7 @@ from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_OMADA_WEBHOOK_ID, CONF_OMADA_WEBHOOK_SECRET, DOMAIN
+from .omada_events import parse_payload
 
 LOGGER = logging.getLogger(__name__)
 
@@ -115,6 +117,9 @@ class OmadaWebhook:
         if isinstance(payload, dict):
             payload = {k: v for k, v in payload.items() if k != SECRET_FIELD}
         self.recent.append({"received": dt_util.utcnow().isoformat(), "payload": payload})
+        if (history := self.controller.history) is not None:
+            for event in parse_payload(payload):
+                history.add("wifi_events", **asdict(event))
         await self._refresh.async_call()
         return web.Response(status=HTTPStatus.OK)
 

@@ -210,6 +210,44 @@ recent messages (without the secret) are in the diagnostics.
 Nothing calls them automatically yet; they are the building blocks for later
 automations (e.g. room SSID off at check-out).
 
+## History database (MariaDB)
+
+Hotel Sense keeps a history for later analysis (and the future web admin) in
+its own database, separate from the Home Assistant recorder.
+
+1. Install the **MariaDB** add-on and add to its configuration:
+   ```yaml
+   databases:
+     - hotel_sense
+   logins:
+     - username: hotel_sense
+       password: <choose one>
+   rights:
+     - username: hotel_sense
+       database: hotel_sense
+   ```
+2. Hotel Sense → Configure → *History database (MariaDB)*: host `core-mariadb`,
+   port `3306`, user, password, database `hotel_sense`, retention (months,
+   default 12). Saving checks the connection and creates the tables; the
+   password is never shown again (empty keeps it) and is redacted in diagnostics.
+   An empty user switches the history off.
+
+| Table | What |
+|---|---|
+| `wifi_events` | Omada webhook client events: online / offline / roaming, client and AP MACs, SSID, connected time, traffic |
+| `presence_sessions` | a device was in a room (Area) from … to … (guest / employee / fixed), written when it leaves |
+| `room_states` | room state changes (empty / violation / staff_visit / checked_in) with device counts |
+| `room_status` | check-in / check-out and who set it (manual / exely) with the booking number |
+| `pms_events` | Exely webhook events: event, booking, result, rooms |
+
+Rows are queued and written in batches every 15 s; while the database is down
+they wait in memory (up to 20 000 rows) and are written when it is back - Home
+Assistant and the rooms never wait for it. Open presence sessions are written
+on unload and when Home Assistant stops. Rows older than the retention period
+are deleted every night at 04:17. Times are UTC. Only MACs, SSIDs, rooms and
+booking numbers are stored: no client names, IP addresses or guest data.
+Diagnostics show the writer state (connected, queued, written, last error).
+
 ## Installation
 
 HACS → ⋮ → Custom repositories → `https://github.com/tenirhotels/ha-hotelsense`

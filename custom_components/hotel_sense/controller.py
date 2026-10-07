@@ -21,8 +21,10 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
-    ATTR_CONTROLLER_MODEL, ATTR_MANUFACTURER, CONF_SCAN_INTERVAL, CONF_SITE, DOMAIN, PLATFORMS,
+    ATTR_CONTROLLER_MODEL, ATTR_MANUFACTURER, CONF_DB_RETENTION, CONF_SCAN_INTERVAL, CONF_SITE,
+    DB_KEYS, DOMAIN, PLATFORMS,
 )
+from .history import DEFAULT_RETENTION_MONTHS
 from .ids import NS_AP, make_unique_id, parse_unique_id
 from .omada_hub import (
     AccessPoint, ConnectedClient, LoginFailed, OmadaClientException, OmadaHub,
@@ -34,6 +36,8 @@ DEFAULT_SCAN_INTERVAL = 30
 # entry.data keys of the controller connection: a change reloads the entry
 # (Exely secrets live in entry.data too, but rotating them needs no reload).
 CONNECTION_KEYS = (CONF_URL, CONF_SITE, CONF_USERNAME, CONF_PASSWORD, CONF_VERIFY_SSL)
+# The history database connection (entry.data) reloads the entry as well.
+RELOAD_KEYS = CONNECTION_KEYS + DB_KEYS
 # Keys of the entities each access point has (see sensor.py / binary_sensor.py).
 AP_ENTITY_KEYS = {"sensor": {"uptime", "clients"}, "binary_sensor": {"status"}}
 # Names/types of clients that just left are kept this long (presence keeps a
@@ -51,7 +55,7 @@ class OmadaController:
         self.hass = hass
         self.entry = config_entry
         self.hub: OmadaHub = build_hub(hass, config_entry.data)
-        self._connection = {k: config_entry.data.get(k) for k in CONNECTION_KEYS}
+        self._connection = {k: config_entry.data.get(k) for k in RELOAD_KEYS}
         self.available = True
         self.access_points: dict[str, AccessPoint] = {}
         self.clients: dict[str, ConnectedClient] = {}
@@ -60,6 +64,8 @@ class OmadaController:
         self.presence = None  # PresenceManager, set up in __init__.async_setup_entry
         self.exely = None  # ExelyReceiver, set up in __init__.async_setup_entry
         self.omada_webhook = None  # OmadaWebhook, set up in __init__.async_setup_entry
+        self.history = None  # HistoryWriter when the history database is set up
+        self.async_stop_history = None  # closes presence sessions, flushes, disconnects
         self.option_scan_interval = DEFAULT_SCAN_INTERVAL
         self.load_config_entry_options()
 
@@ -174,7 +180,10 @@ class OmadaController:
             return
         old_interval = controller.option_scan_interval
         controller.load_config_entry_options()
-        connection = {k: config_entry.data.get(k) for k in CONNECTION_KEYS}
+        connection = {k: config_entry.data.get(k) for k in RELOAD_KEYS}
+        if controller.history is not None:
+            controller.history.retention_months = int(
+                config_entry.options.get(CONF_DB_RETENTION, DEFAULT_RETENTION_MONTHS))
         if controller.option_scan_interval != old_interval or connection != controller._connection:
             hass.config_entries.async_schedule_reload(config_entry.entry_id)
             return

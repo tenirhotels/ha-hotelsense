@@ -8,6 +8,7 @@ checked into).
 * Room = Home Assistant Area, location = the Area of the client's access point.
 * Known-device list: fixed equipment and staff devices (CSV import / export).
 * Exely PMS webhook sets the room status (room looked up via the Exely API); manual select as fallback.
+* Optional history database (MariaDB add-on): Wi-Fi events, presence sessions, room states and statuses, Exely events; retention configurable.
 * Dashboards in `dashboards/` (English and Russian).
 
 Requires an Omada SDN controller 5.1 or newer (tested with 6.3). Uses

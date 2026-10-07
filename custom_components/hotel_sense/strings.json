@@ -54,7 +54,8 @@
           "device_list": "Fixed and employee devices",
           "exely": "Exely PMS (check-in / check-out)",
           "omada_webhook": "Omada webhook (instant updates)",
-          "exely_api": "Exely API (room of a booking)"
+          "exely_api": "Exely API (room of a booking)",
+          "database": "History database (MariaDB)"
         }
       },
       "presence": {
@@ -198,6 +199,21 @@
         "data_description": {
           "exely_client_secret": "Leave empty to keep the saved secret."
         }
+      },
+      "database": {
+        "title": "History database",
+        "description": "Hotel Sense keeps its history (Wi-Fi events, who was in which room and when, room states and statuses, Exely events) in its own database, e.g. the MariaDB add-on: host core-mariadb, port 3306. Rows are written in batches every 15 seconds; while the database is down they wait in memory. Rows older than the retention period are deleted every night. Only MACs, SSIDs, rooms and booking numbers are stored - no names or IP addresses.\n\nSaving checks the connection and creates the tables. Leave the user empty to switch the history off.\n\nNow: {status}. Password saved: {password_saved}.",
+        "data": {
+          "db_host": "Host",
+          "db_port": "Port",
+          "db_username": "User",
+          "db_password": "Password",
+          "db_name": "Database",
+          "db_retention_months": "Keep history (months)"
+        },
+        "data_description": {
+          "db_password": "Leave empty to keep the saved password."
+        }
       }
     },
     "error": {
@@ -208,7 +224,10 @@
       "exely_property_required": "Enter the property ID.",
       "exely_invalid_auth": "Exely rejected the client ID or secret.",
       "exely_property_not_found": "Exely knows no property with this ID (or the access does not cover it).",
-      "exely_cannot_connect": "Exely did not answer; try again later or see the Home Assistant log."
+      "exely_cannot_connect": "Exely did not answer; try again later or see the Home Assistant log.",
+      "db_auth": "The database rejected the user or password (or the user has no rights on this database).",
+      "db_database": "No database with this name (create it in the MariaDB add-on configuration).",
+      "db_connect": "The database server does not answer at this host and port (is the MariaDB add-on running?)."
     },
     "abort": {
       "no_devices": "The device list is empty."

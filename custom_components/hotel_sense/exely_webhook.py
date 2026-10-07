@@ -235,7 +235,8 @@ class ExelyReceiver:
             if area_id is None:
                 result["unresolved"].append(candidates[0] if candidates else "?")
                 continue
-            self.manager.async_set_status(area_id, parsed.status, STATUS_SOURCE_EXELY)
+            self.manager.async_set_status(area_id, parsed.status, STATUS_SOURCE_EXELY,
+                                          booking=parsed.booking)
             result["applied"].append(self.manager.rooms[area_id].name)
         result["result"] = self._outcome(result)
         self._record(item, result)
@@ -271,7 +272,8 @@ class ExelyReceiver:
             if (area_id := self.resolve_room(label)) is None:
                 result["unresolved"].append(label)
                 continue
-            self.manager.async_set_status(area_id, parsed.status, STATUS_SOURCE_EXELY)
+            self.manager.async_set_status(area_id, parsed.status, STATUS_SOURCE_EXELY,
+                                          booking=parsed.booking)
             result["applied"].append(self.manager.rooms[area_id].name)
         result["result"] = self._outcome(result)
         return result
@@ -285,4 +287,10 @@ class ExelyReceiver:
         # Raw payloads (guest data) stay in memory only, for config entry diagnostics.
         self.recent.appendleft({**result, "payload": payload})
         self.hass.bus.async_fire(EVENT_EXELY, result)
+        if (history := self.manager.controller.history) is not None:
+            parsed = parse_event(payload)
+            history.add("pms_events", event_id=parsed.event_id, event=(result.get("event") or "")[:64],
+                        booking=parsed.booking, property_id=parsed.property_id,
+                        status=result.get("status"), result=result["result"],
+                        rooms=", ".join(result.get("applied", []) + result.get("unresolved", []))[:255])
         async_dispatcher_send(self.hass, self.signal)

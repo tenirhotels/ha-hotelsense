@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, LEGACY_OPTIONS, PLATFORMS
+from .const import (
+    CONF_DB_HOST, CONF_DB_NAME, CONF_DB_PASSWORD, CONF_DB_PORT, CONF_DB_RETENTION,
+    CONF_DB_USERNAME, DEFAULT_DB_PORT, DOMAIN, LEGACY_OPTIONS, PLATFORMS,
+)
 from .controller import OmadaController
+from .history import DEFAULT_RETENTION_MONTHS, HistoryWriter, build_url
 from .exely_webhook import ExelyReceiver, async_ensure_secrets
 from .omada_webhook import OmadaWebhook, async_ensure_omada_secrets
 from .presence_manager import PresenceManager
@@ -33,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_ensure_omada_secrets(hass, entry)
     controller = OmadaController(hass, entry)
     await controller.async_setup()
+    controller.history = history_writer(hass, entry)
     controller.presence = PresenceManager(hass, entry, controller, await async_get_device_store(hass))
     controller.exely = ExelyReceiver(hass, entry, controller.presence)
     controller.omada_webhook = OmadaWebhook(hass, entry, controller)
@@ -45,11 +51,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controller.presence.async_start()
     controller.exely.async_start()
     controller.omada_webhook.async_start()
+    if controller.history is not None:
+        controller.history.async_start()
+
+        stopped = False
+
+        async def _async_stop(_event: Event | None = None) -> None:
+            # Home Assistant does not unload entries when it stops: write what is open.
+            nonlocal stopped
+            stopped = True
+            controller.presence.async_close_sessions()
+            await controller.history.async_stop()
+
+        unsub_stop = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_stop)
+        entry.async_on_unload(lambda: None if stopped else unsub_stop())
+        controller.async_stop_history = _async_stop
     return True
+
+
+def history_writer(hass: HomeAssistant, entry: ConfigEntry) -> HistoryWriter | None:
+    """The history database writer, if the database is set up in the options."""
+    data = entry.data
+    if not (data.get(CONF_DB_HOST) and data.get(CONF_DB_USERNAME) and data.get(CONF_DB_NAME)):
+        return None
+    url = build_url(data[CONF_DB_HOST], data.get(CONF_DB_PORT) or DEFAULT_DB_PORT,
+                    data[CONF_DB_USERNAME], data.get(CONF_DB_PASSWORD) or "", data[CONF_DB_NAME])
+    return HistoryWriter(hass, url, int(entry.options.get(CONF_DB_RETENTION,
+                                                          DEFAULT_RETENTION_MONTHS)))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controller: OmadaController = hass.data[DOMAIN][entry.entry_id]
+    if controller.history is not None:
+        await controller.async_stop_history()
     if unloaded := await controller.async_close():
         hass.data[DOMAIN].pop(entry.entry_id)
     return unloaded

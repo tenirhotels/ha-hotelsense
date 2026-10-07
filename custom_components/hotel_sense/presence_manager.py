@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -20,7 +21,8 @@ from .const import (
 )
 from .device_kind import resolve_kind
 from .device_list import CATEGORY_FIXED
-from .presence import AreaPresence, Observation, PresenceEngine, evaluate_room
+from .history import now as history_now
+from .presence import CATEGORY_GUEST, AreaPresence, Observation, PresenceEngine, evaluate_room
 from .storage import DeviceListStore
 
 LOGGER = logging.getLogger(__name__)
@@ -53,7 +55,13 @@ class PresenceManager:
         self.status_origin: dict[str, tuple[str, str | None]] = {}
         self.data_stale = False
         self.common_areas: set[str] | None = None
+        # mac -> (area_id, since): open presence sessions (history database only).
+        self.sessions: dict[str, tuple[str, datetime]] = {}
         self.load_options()
+
+    @property
+    def history(self):
+        return self.controller.history
 
     # -- signals ---------------------------------------------------------- #
     @property
@@ -126,6 +134,7 @@ class PresenceManager:
         self.data_stale = False
         ap_areas = resolve_ap_areas(self.hass, self.controller)
         self.engine.update(dt_util.utcnow().timestamp(), self._observations(), ap_areas)
+        self._update_sessions()
 
         areas = ar.async_get(self.hass)
         new = []
@@ -140,6 +149,34 @@ class PresenceManager:
         if new:
             async_dispatcher_send(self.hass, self.signal_rooms_added, new)
         self.async_refresh()
+
+    # -- history: device in room from ... to ... ---------------------------- #
+    def _update_sessions(self) -> None:
+        if self.history is None:
+            return
+        now = history_now()
+        current = {mac: t.area_id for mac, t in self.engine.tracks.items() if t.area_id}
+        for mac, (area_id, since) in list(self.sessions.items()):
+            if current.get(mac) != area_id:
+                self._end_session(mac, area_id, since, now)
+        for mac, area_id in current.items():
+            if mac not in self.sessions:
+                self.sessions[mac] = (area_id, now)
+
+    def _end_session(self, mac: str, area_id: str, since: datetime, now: datetime) -> None:
+        del self.sessions[mac]
+        self.history.add("presence_sessions", client_mac=mac, area_id=area_id,
+                         category=self.store.devices.category_of(mac) or CATEGORY_GUEST,
+                         started=since, ended=now, seconds=int((now - since).total_seconds()))
+
+    @callback
+    def async_close_sessions(self) -> None:
+        """End the open sessions now (unload / stop): nothing is left unwritten."""
+        if self.history is None:
+            return
+        now = history_now()
+        for mac, (area_id, since) in list(self.sessions.items()):
+            self._end_session(mac, area_id, since, now)
 
     @callback
     def async_refresh(self) -> None:
@@ -165,17 +202,25 @@ class PresenceManager:
                     "guest_devices": room.presence.guest_count,
                     "employee_devices": room.presence.employee_count,
                 })
+                if self.history is not None:
+                    self.history.add("room_states", area_id=room.area_id, status=room.status,
+                                     old_state=old, state=room.state,
+                                     guest_devices=room.presence.guest_count,
+                                     employee_devices=room.presence.employee_count)
         async_dispatcher_send(self.hass, self.signal_presence)
 
     @callback
     def async_set_status(self, area_id: str, status: str, source: str = STATUS_SOURCE_MANUAL,
-                         changed_at: str | None = None) -> None:
+                         changed_at: str | None = None, booking: str | None = None) -> None:
         """Set a room status. ``source``: manual / exely / restored (after a restart)."""
         if self.statuses.get(area_id) == status:
             return
         self.statuses[area_id] = status
         if source != STATUS_SOURCE_RESTORED:
             changed_at = dt_util.utcnow().isoformat()
+            if self.history is not None:
+                self.history.add("room_status", area_id=area_id, status=status, source=source,
+                                 booking=booking)
         self.status_origin[area_id] = (source, changed_at)
         self.async_refresh()
 

@@ -51,6 +51,18 @@ CONF_EXELY_CLIENT_ID = "exely_client_id"
 CONF_EXELY_CLIENT_SECRET = "exely_client_secret"
 CONF_EXELY_PROPERTY_ID = "exely_property_id"
 
+# History database (MariaDB add-on): connection in entry.data, retention in options
+CONF_DB_HOST = "db_host"
+CONF_DB_PORT = "db_port"
+CONF_DB_USERNAME = "db_username"
+CONF_DB_PASSWORD = "db_password"
+CONF_DB_NAME = "db_name"
+DB_KEYS = (CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME)
+CONF_DB_RETENTION = "db_retention_months"
+DEFAULT_DB_HOST = "core-mariadb"
+DEFAULT_DB_PORT = 3306
+DEFAULT_DB_NAME = "hotel_sense"
+
 # Omada controller webhook (instant refresh)
 CONF_OMADA_WEBHOOK_ID = "omada_webhook_id"  # entry.data, generated
 CONF_OMADA_WEBHOOK_SECRET = "omada_webhook_secret"  # entry.data, generated ("Shard Secret")
