@@ -74,7 +74,7 @@ def test_device_list_device_type_column():
                                 f"{RANDOM_MAC},X,fixed,spaceship\n")
     assert result.added == 1 and "Unknown device type" in result.errors[0]
     assert devices.get(REAL_MAC).device_type == KIND_POS
-    assert devices.export_csv().splitlines()[1].endswith(",pos")
+    assert devices.export_csv().splitlines()[1].endswith(",pos,FIX-0001")
 
 
 # --------------------------------------------------------------------------- #

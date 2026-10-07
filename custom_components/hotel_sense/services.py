@@ -39,6 +39,8 @@ SERVICE_HOTEL_REPORT = "hotel_report"
 SERVICE_DEVICE_ROUTE = "device_route"
 SERVICE_DEVICE_CANDIDATES = "device_candidates"
 SERVICE_OMADA_KNOWN_DEVICES = "omada_known_devices"
+SERVICE_LINK_MAC = "link_mac"
+SERVICE_UNLINK_MAC = "unlink_mac"
 ATTR_BOOKING = "booking"
 ATTR_ROOM = "room"
 ATTR_START = "start"
@@ -58,6 +60,7 @@ ATTR_CREATE_MISSING_AREAS = "create_missing_areas"
 ATTR_REPLACE = "replace"
 ATTR_DEFAULT_CATEGORY = "default_category"
 ATTR_MAC = "mac"
+ATTR_IDENTITY = "identity"
 ATTR_ACCESS_POINT = "access_point"
 ATTR_SSID = "ssid"
 ATTR_ENABLED = "enabled"
@@ -141,7 +144,8 @@ def async_register_services(hass: HomeAssistant) -> None:
     async def export_devices(call: ServiceCall) -> ServiceResponse:
         store = await async_get_device_store(hass)
         return {"csv": store.devices.export_csv(),
-                "devices": [d.as_dict() for d in store.devices]}
+                "devices": [d.as_dict() for d in store.devices],
+                "identities": [i.as_dict() for i in store.devices.identities()]}
 
     def client_command(method: str, what: str):
         async def handler(call: ServiceCall) -> None:
@@ -251,13 +255,43 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     async def device_route_service(call: ServiceCall) -> ServiceResponse:
         controller = _controller(hass, call)
-        mac = _mac(call)
+        devices = (await async_get_device_store(hass)).devices
+        if call.data.get(ATTR_IDENTITY):
+            identity = devices.identity(call.data[ATTR_IDENTITY])
+            if identity is None:
+                raise ServiceValidationError(f"Unknown device {call.data[ATTR_IDENTITY]!r}")
+            macs = list(identity.macs)
+        elif call.data.get(ATTR_MAC):
+            macs = [_mac(call)]
+            identity = devices.identity_of(macs[0])
+        else:
+            raise ServiceValidationError("Give a mac or a device identity")
         start, end = _period(call)
-        current = controller.presence.sessions.get(mac)
-        known = (await async_get_device_store(hass)).devices.get(mac)
-        route = await _read(controller, lambda conn: device_route(conn, mac, start, end, current))
-        return {"name": known.name if known else None,
-                "category": known.category if known else None, **route}
+        current = [s for mac in macs if (s := controller.presence.sessions.get(mac))]
+        route = await _read(controller, lambda conn: device_route(conn, macs, start, end, current))
+        return {"identity": identity.id if identity else None,
+                "name": identity.name if identity else None,
+                "category": identity.category if identity else None, **route}
+
+    async def link_mac(call: ServiceCall) -> ServiceResponse:
+        store = await async_get_device_store(hass)
+        mac = _mac(call)
+        try:
+            before = await store.async_link_mac(call.data[ATTR_IDENTITY], mac)
+        except KeyError as err:
+            raise ServiceValidationError(err.args[0]) from err
+        return {"mac": mac, "previous_identity": before,
+                "identity": store.devices.identity_of(mac).as_dict()}
+
+    async def unlink_mac(call: ServiceCall) -> ServiceResponse:
+        store = await async_get_device_store(hass)
+        mac = _mac(call)
+        identity = store.devices.identity_of(mac)
+        if identity is None:
+            raise ServiceValidationError(f"{mac} is not on the device list")
+        await store.async_remove([mac])
+        return {"mac": mac, "previous_identity": identity.id,
+                "identity_removed": store.devices.identity(identity.id) is None}
 
     async def device_candidates_service(call: ServiceCall) -> ServiceResponse:
         controller = _controller(hass, call)
@@ -291,8 +325,18 @@ def async_register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.ONLY)
     hass.services.async_register(
         DOMAIN, SERVICE_DEVICE_ROUTE, device_route_service,
-        schema=vol.Schema({**entry_field, vol.Required(ATTR_MAC): cv.string, **period_fields}),
+        schema=vol.Schema({**entry_field, vol.Optional(ATTR_MAC): cv.string,
+                           vol.Optional(ATTR_IDENTITY): cv.string, **period_fields}),
         supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        DOMAIN, SERVICE_LINK_MAC, link_mac,
+        schema=vol.Schema({vol.Required(ATTR_IDENTITY): cv.string,
+                           vol.Required(ATTR_MAC): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(
+        DOMAIN, SERVICE_UNLINK_MAC, unlink_mac,
+        schema=vol.Schema({vol.Required(ATTR_MAC): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(
         DOMAIN, SERVICE_DEVICE_CANDIDATES, device_candidates_service,
         schema=vol.Schema({

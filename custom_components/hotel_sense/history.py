@@ -22,6 +22,7 @@ Tables (schema version 3):
 ``pms_events``         Exely webhook events and what came of them
 ``room_traffic``       Wi-Fi traffic per room, device category and hour
 ``rooms``              the room model: number, name, kind (replaced when it changes)
+``devices``            the device list: identity, MAC, name, category (replaced when it changes)
 
 Read through the ``v1_*`` views (``views.py``), the stable interface.
 """
@@ -47,7 +48,7 @@ from .views import create_views
 
 LOGGER = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3  # 2: room_traffic, 3: rooms + views v1
+SCHEMA_VERSION = 4  # 2: room_traffic, 3: rooms + views v1, 4: devices
 DRIVER = "mysql+pymysql"
 FLUSH_INTERVAL = timedelta(seconds=15)
 BATCH_SIZE = 200
@@ -146,6 +147,19 @@ rooms = Table(
     Column("updated", DateTime, nullable=False),
     **_TABLE_ARGS,
 )
+# The device list: one row per MAC with its device identity, replaced as a whole
+# when it changes. Hotel devices only (names of guests' devices are never stored).
+devices = Table(
+    "devices", metadata,
+    Column("mac", String(17), primary_key=True),
+    Column("identity_id", String(32), nullable=False, index=True),
+    Column("name", String(128), nullable=False),
+    Column("category", String(16), nullable=False),  # employee / fixed
+    Column("updated", DateTime, nullable=False),
+    **_TABLE_ARGS,
+)
+# Tables written as a whole snapshot (set_rooms / set_devices).
+SNAPSHOTS = {"rooms": rooms, "devices": devices}
 TABLES = {t.name: t for t in (wifi_events, presence_sessions, room_states, room_status,
                               pms_events, room_traffic)}
 # Column that ages a row out.
@@ -214,7 +228,7 @@ class HistoryWriter:
         self.retention_months = retention_months
         self._engine: Engine | None = None
         self._queue: deque[tuple[str, dict]] = deque()
-        self._rooms: list[dict] | None = None  # room model snapshot to write
+        self._snapshots: dict[str, list[dict]] = {}  # table -> snapshot to write
         self._lock = asyncio.Lock()  # one flush / purge at a time
         self._unsubs: list[CALLBACK_TYPE] = []
         self.connected = False
@@ -273,7 +287,12 @@ class HistoryWriter:
     @callback
     def set_rooms(self, room_rows: list[dict]) -> None:
         """The room model changed: write this snapshot with the next flush."""
-        self._rooms = room_rows
+        self._snapshots["rooms"] = room_rows
+
+    @callback
+    def set_devices(self, device_rows: list[dict]) -> None:
+        """The device list changed: write this snapshot with the next flush."""
+        self._snapshots["devices"] = device_rows
 
     @callback
     def add(self, table: str, **row: Any) -> None:
@@ -295,20 +314,21 @@ class HistoryWriter:
     async def async_flush(self) -> None:
         """Write the queue (waits for a flush already running)."""
         async with self._lock:
-            if (not self._queue and self._rooms is None) or not await self._async_connect():
+            if (not self._queue and not self._snapshots) or not await self._async_connect():
                 return
             batch = list(self._queue)
-            room_rows = self._rooms
+            snapshots = dict(self._snapshots)
             try:
-                await self.hass.async_add_executor_job(self._write, batch, room_rows)
+                await self.hass.async_add_executor_job(self._write, batch, snapshots)
             except Exception as err:  # noqa: BLE001 - kept queued, retried next time
                 self._failed(err)
                 await self._async_reset()
                 return
             for _ in batch:
                 self._queue.popleft()
-            if self._rooms is room_rows:
-                self._rooms = None
+            for table, rows in snapshots.items():
+                if self._snapshots.get(table) is rows:  # not replaced meanwhile
+                    del self._snapshots[table]
             self.written += len(batch)
             self.last_write = dt_util.utcnow().isoformat()
             self.last_error = None
@@ -335,7 +355,8 @@ class HistoryWriter:
             engine, self._engine = self._engine, None
             await self.hass.async_add_executor_job(engine.dispose)
 
-    def _write(self, batch: list[tuple[str, dict]], room_rows: list[dict] | None = None) -> None:
+    def _write(self, batch: list[tuple[str, dict]],
+               snapshots: dict[str, list[dict]] | None = None) -> None:
         grouped: dict[str, list[dict]] = {}
         for table, row in batch:
             grouped.setdefault(table, []).append(row)
@@ -343,11 +364,11 @@ class HistoryWriter:
         with self._engine.begin() as conn:
             for table, rows in grouped.items():
                 conn.execute(insert(TABLES[table]), rows)
-            if room_rows is not None:
-                conn.execute(delete(rooms))
-                if room_rows:
+            for table, rows in (snapshots or {}).items():
+                conn.execute(delete(SNAPSHOTS[table]))
+                if rows:
                     stamp = now()
-                    conn.execute(insert(rooms), [dict(r, updated=stamp) for r in room_rows])
+                    conn.execute(insert(SNAPSHOTS[table]), [dict(r, updated=stamp) for r in rows])
 
     # -- retention ------------------------------------------------------------ #
     async def _async_purge_timer(self, _now=None) -> None:

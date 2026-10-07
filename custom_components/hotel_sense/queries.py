@@ -53,6 +53,8 @@ def _rows(conn: Connection, sql: str, **params) -> list[dict]:
     for key in ("start", "end"):
         if f":{key}" in sql:
             stmt = stmt.bindparams(bindparam(key, type_=DateTime))
+    if ":macs" in sql:
+        stmt = stmt.bindparams(bindparam("macs", expanding=True))
     return [dict(r._mapping) for r in conn.execute(stmt, params)]
 
 
@@ -148,24 +150,35 @@ def _zone(row) -> dict:
             "name": row["name"] or row["room_id"], "kind": row["kind"]}
 
 
-def device_route(conn: Connection, mac: str, start: datetime, end: datetime,
-                 current: tuple[str, datetime] | None = None, merge_gap: int = 300) -> dict:
+def device_route(conn: Connection, macs: str | Collection[str], start: datetime, end: datetime,
+                 current: tuple[str, datetime] | Collection[tuple[str, datetime]] | None = None,
+                 merge_gap: int = 300) -> dict:
     """Where one device was in the period, in order.
 
-    ``current`` is the session still open in memory (area_id, since) - sessions
-    reach the database only when they end. Stops in the same zone less than
-    ``merge_gap`` seconds apart are merged (a phone that briefly dropped off);
-    ``gap_seconds`` is the time the device was nowhere before a stop.
+    ``macs``: the device's MAC, or all MACs of a device identity (a phone that
+    changed its private MAC) - their sessions form one route.
+    ``current`` is the session still open in memory (area_id, since), or one
+    per MAC - sessions reach the database only when they end. Stops in the
+    same zone less than ``merge_gap`` seconds apart (or overlapping) are
+    merged; ``gap_seconds`` is the time the device was nowhere before a stop.
     """
     start, end = _naive(start), _naive(end)
-    rows = _rows(conn, _SESSIONS + " AND p.client_mac = :mac ORDER BY p.started",
-                 start=start, end=end, mac=mac)
-    if current is not None and _naive(current[1]) < end:
+    macs = [macs] if isinstance(macs, str) else list(macs)
+    if current is None:
+        current = []
+    elif isinstance(current, tuple) and len(current) == 2 and isinstance(current[0], str):
+        current = [current]
+    rows = _rows(conn, _SESSIONS + " AND p.client_mac IN :macs", start=start, end=end,
+                 macs=macs) if macs else []
+    for area_id, since in current:
+        if _naive(since) >= end:
+            continue
         zone = next(iter(_rows(conn, "SELECT room_id, number, name, kind FROM v1_rooms "
-                                     "WHERE room_id = :room", room=current[0])), None)
-        rows.append({"room_id": current[0], "number": zone and zone["number"],
+                                     "WHERE room_id = :room", room=area_id)), None)
+        rows.append({"room_id": area_id, "number": zone and zone["number"],
                      "name": zone and zone["name"], "kind": zone and zone["kind"],
-                     "started": _naive(current[1]), "ended": None})
+                     "started": _naive(since), "ended": None})
+    rows.sort(key=lambda r: _dt(r["started"]))
 
     stops: list[dict] = []
     for row in rows:
@@ -174,7 +187,8 @@ def device_route(conn: Connection, mac: str, start: datetime, end: datetime,
         last = stops[-1] if stops else None
         if last and last["room_id"] == row["room_id"] \
                 and (started - last["_ended"]).total_seconds() < merge_gap:
-            last["_ended"], last["open"] = max(last["_ended"], ended), row["ended"] is None
+            last["_ended"] = max(last["_ended"], ended)
+            last["open"] = last["open"] or row["ended"] is None
             continue
         gap = int((started - last["_ended"]).total_seconds()) if last else None
         stops.append({**_zone(row), "_started": started, "_ended": ended,
@@ -188,7 +202,7 @@ def device_route(conn: Connection, mac: str, start: datetime, end: datetime,
             stop["ended"] = None  # still there
         zones[stop["room_id"]] += stop["seconds"]
     return {
-        "mac": mac,
+        "macs": macs,
         "period": {"start": _iso(start), "end": _iso(end)},
         "stops": stops,
         "seconds_per_zone": dict(sorted(zones.items(), key=lambda kv: -kv[1])),

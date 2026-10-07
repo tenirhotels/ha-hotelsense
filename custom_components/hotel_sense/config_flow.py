@@ -69,7 +69,7 @@ from .device_kind import LISTABLE_KINDS
 from .exely import parse_room_map
 from .exely_api import ExelyApiError, ExelyAuthError, ExelyNotFound
 from . import history
-from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
+from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice, parse_identity_id
 from .storage import async_get_device_store
 
 LOGGER = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ CONF_OWNER = "owner"
 CONF_NOTE = "note"
 CONF_ROOM = "room"
 CONF_DEVICE_TYPE = "device_type"
+CONF_IDENTITY = "identity"
 CONF_DEVICES = "devices"
 CONF_CSV = "csv"
 CONF_REPLACE = "replace"
@@ -351,6 +352,9 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(CONF_DEVICE_TYPE, default=(d.device_type if d else "") or "auto"): SelectSelector(
                 SelectSelectorConfig(options=["auto", *LISTABLE_KINDS], translation_key=CONF_DEVICE_TYPE,
                                      mode=SelectSelectorMode.DROPDOWN)),
+            # Empty: keep the device's identity (or create one for a new MAC).
+            vol.Optional(CONF_IDENTITY,
+                         description={"suggested_value": d.identity if d else ""}): str,
         })
 
     async def _save_device(self, user_input: dict[str, Any], replace_mac: str | None,
@@ -365,10 +369,24 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         except ValueError:
             errors[CONF_MAC] = "invalid_mac"
             return False
+        try:
+            device.identity = parse_identity_id(user_input.get(CONF_IDENTITY))
+        except ValueError:
+            errors[CONF_IDENTITY] = "invalid_identity"
+            return False
         store = await async_get_device_store(self.hass)
         if device.mac != replace_mac and device.mac in store.devices:
             errors[CONF_MAC] = "duplicate_mac"
             return False
+        target = store.devices.identity(device.identity) if device.identity else None
+        current = store.devices.identity_of(replace_mac or device.mac)
+        if target is not None and (current is None or current.id != target.id):
+            # Moving the MAC to another existing device: that device keeps its
+            # name, category ... (the form showed the old device's values).
+            if replace_mac and replace_mac != device.mac:
+                await store.async_remove([replace_mac])
+            await store.async_link_mac(target.id, device.mac)
+            return True
         await store.async_upsert(device, replace_mac=replace_mac)
         return True
 
@@ -382,7 +400,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="device_add", data_schema=schema, errors=errors)
 
     def _device_choices(self, store) -> list[SelectOptionDict]:
-        return [SelectOptionDict(value=d.mac, label=f"{d.name or d.mac} ({d.mac}, {d.category})")
+        return [SelectOptionDict(value=d.mac,
+                                 label=f"{d.name or d.mac} ({d.identity}, {d.mac}, {d.category})")
                 for d in store.devices]
 
     async def async_step_device_edit_select(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

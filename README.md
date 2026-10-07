@@ -53,12 +53,25 @@ Omada integration alongside it.
    ```
 3. **Fixed and employee devices.** Settings → Devices & services → Hotel Sense →
    Configure → *Fixed and employee devices*: add / edit / delete, import and
-   export CSV (`mac,name,category,owner,note,room,device_type`, category `fixed` or `employee`;
+   export CSV (`mac,name,category,owner,note,room,device_type,identity`, category `fixed` or `employee`;
    `owner` = employee name, `note` = department/role, `room` = where equipment is
    installed, reference only: the location always comes from the AP).
    MACs are accepted in any notation (`aa:bb:..`, `AA-BB-..`, `aabb.ccdd.eeff`).
    Same via the `hotel_sense.import_devices` / `hotel_sense.export_devices` actions.
    The list is stored in `.storage/hotel_sense.devices` (never in this repo).
+
+   **Device identities.** A MAC is an observation, not a device: phones use a
+   private (random) MAC per network and get a new one when the network is
+   forgotten or the phone reset. Each entry of the list is a *device*
+   (`EMP-0007` for staff, `FIX-0003` for equipment - given automatically, or
+   your own ID) with one or more MACs: MAC → device. Rows of the CSV with the
+   same `identity` are MACs of one device; the form has a *Device ID* field;
+   `hotel_sense.link_mac` (device, MAC) adds a MAC to a device and
+   `hotel_sense.unlink_mac` takes one off (it counts as a guest again). Name,
+   category and owner belong to the device, so a new MAC of a staff phone is
+   staff at once. MACs are never merged automatically - a wrong merge would
+   hide a guest in an empty room; random MACs are counted like any other
+   device. IDs stay the same when the category changes and are never reused.
 4. **Presence options** (Configure → *Room presence*): disconnect timeout
    (default 5 min), roaming debounce (default 30 s), minimum RSSI to move a
    device between rooms (off by default, tune during the pilot), and the list
@@ -317,6 +330,7 @@ the room model.
 | `v1_room_traffic_hourly` / `v1_room_traffic_daily` | hour / day, room_id, number, name, category, down_bytes, up_bytes |
 | `v1_pms_events` | ts, event_id, event, booking, status, result, rooms |
 | `v1_wifi_events` | ts, event, client_mac, ap_mac, from_ap_mac, ssid, connected_seconds, traffic_kb |
+| `v1_device_macs` | identity_id, mac, name, category (the device list: join on `client_mac = mac`) |
 
 The database user needs the right to create views (the MariaDB add-on's
 `rights` give it); without it the tables still fill and a warning is logged.
@@ -329,7 +343,8 @@ The database user needs the right to create views (the MariaDB add-on's
   own devices only), traffic.
 * `hotel_sense.hotel_report` — the same period for all rooms: violations,
   status changes, staff time and visits, guest traffic.
-* `hotel_sense.device_route` — `mac` and a period: where the device was, in
+* `hotel_sense.device_route` — `mac` or `identity` (a device of the list:
+  all its MACs) and a period: where the device was, in
   order (zone, arrival, departure, time there, time off Wi-Fi before it); stops
   in the same zone a few minutes apart are merged, the current zone is
   included. For following staff through the hotel.

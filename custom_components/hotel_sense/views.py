@@ -45,6 +45,7 @@ VIEWS_V1: dict[str, str] = {
         "FROM v1_room_traffic_hourly GROUP BY DATE(hour), room_id, number, name, category"),
     "v1_pms_events": (
         "SELECT ts, event_id, event, booking, status, result, rooms FROM pms_events"),
+    "v1_device_macs": "SELECT identity_id, mac, name, category FROM devices",
     "v1_wifi_events": (
         "SELECT ts, event, client_mac, ap_mac, from_ap_mac, ssid, connected_seconds, traffic_kb "
         "FROM wifi_events"),
