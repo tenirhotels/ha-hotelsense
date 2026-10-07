@@ -1,3 +1,6 @@
+# Hotel Sense 0.3.1
+- Options of the removed ha-omada features are deleted automatically on startup
+
 # Hotel Sense 0.3.0
 - Omada connection on `tplink-omada-client` (the library of Home Assistant's built-in TP-Link Omada integration, MIT); the forked ha-omada code is gone. Full Omada 6 support (client list via OpenAPI v2 from 6.2)
 - Kept with the same IDs: rooms, access point devices (Areas stay), AP *Uptime* / *Clients*, controller *Clients*, misplaced devices, Exely

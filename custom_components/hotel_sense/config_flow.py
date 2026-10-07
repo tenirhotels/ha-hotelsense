@@ -36,6 +36,7 @@ from .const import (
     CONF_EXELY_NEW_KEY,
     CONF_EXELY_NEW_URL,
     CONF_EXELY_ROOM_MAP,
+    LEGACY_OPTIONS,
     DEFAULT_PRESENCE_TIMEOUT,
     DEFAULT_ROAMING_DEBOUNCE,
     DEFAULT_MIN_RSSI,
@@ -63,14 +64,6 @@ CONF_REPLACE = "replace"
 CONF_DEFAULT_CATEGORY = "default_category"
 
 
-# Options of Hotel Sense <= 0.2 (ha-omada entities), no longer used.
-LEGACY_OPTIONS = {
-    "scan_interval_details", "track_clients", "track_devices", "ssid_filter",
-    "disconnect_timeout", "enable_client_bandwidth_sensors", "enable_client_uptime_sensors",
-    "enable_client_block_switch", "enable_device_bandwidth_sensors",
-    "enable_device_radio_utilization_sensors", "enable_device_controls",
-    "enable_device_statistics_sensors", "enable_device_clients_sensors",
-}
 
 
 async def async_validate_connection(hass, data: dict[str, Any]) -> tuple[OmadaHub | None, str | None]:

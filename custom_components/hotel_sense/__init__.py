@@ -6,7 +6,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, PLATFORMS
+from .const import DOMAIN, LEGACY_OPTIONS, PLATFORMS
 from .controller import OmadaController
 from .exely_webhook import ExelyReceiver, async_ensure_secrets
 from .presence_manager import PresenceManager
@@ -22,6 +22,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Options of the ha-omada features removed in 0.3 are dropped (before the
+    # controller registers its update listener, so this does not reload).
+    if LEGACY_OPTIONS & set(entry.options):
+        hass.config_entries.async_update_entry(entry, options={
+            k: v for k, v in entry.options.items() if k not in LEGACY_OPTIONS})
     # Exely secrets first: the controller's update listener reacts to entry updates.
     async_ensure_secrets(hass, entry)
     controller = OmadaController(hass, entry)

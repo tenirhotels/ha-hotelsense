@@ -14,6 +14,15 @@ ATTR_MANUFACTURER = "TP-Link"
 ATTR_CONTROLLER_MODEL = "Omada Controller"
 CLIENTS = "clients"
 
+# Options of Hotel Sense <= 0.2 (ha-omada entities), no longer used.
+LEGACY_OPTIONS = {
+    "scan_interval_details", "track_clients", "track_devices", "ssid_filter",
+    "disconnect_timeout", "enable_client_bandwidth_sensors", "enable_client_uptime_sensors",
+    "enable_client_block_switch", "enable_device_bandwidth_sensors",
+    "enable_device_radio_utilization_sensors", "enable_device_controls",
+    "enable_device_statistics_sensors", "enable_device_clients_sensors",
+}
+
 # Presence (Stage A)
 CONF_PRESENCE_TIMEOUT = "presence_timeout"  # minutes
 CONF_ROAMING_DEBOUNCE = "roaming_debounce"  # seconds
