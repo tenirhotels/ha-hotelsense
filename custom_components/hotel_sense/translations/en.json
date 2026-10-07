@@ -52,7 +52,8 @@
           "device_tracker": "Omada polling",
           "presence": "Room presence",
           "device_list": "Fixed and employee devices",
-          "exely": "Exely PMS (check-in / check-out)"
+          "exely": "Exely PMS (check-in / check-out)",
+          "omada_webhook": "Omada webhook (instant updates)"
         }
       },
       "presence": {
@@ -62,13 +63,15 @@
           "presence_timeout": "Disconnect timeout (minutes)",
           "roaming_debounce": "Roaming debounce (seconds)",
           "min_rssi": "Minimum RSSI to change room (dBm, 0 = off)",
-          "common_areas": "Common areas (no room status, no violations)"
+          "common_areas": "Common areas (no room status, no violations)",
+          "sleep_timeout": "Timeout for sleeping devices (minutes, 0 = same as disconnect timeout)"
         },
         "data_description": {
           "presence_timeout": "A device that drops off Wi-Fi stays in its room this long.",
           "roaming_debounce": "A device must stay on an AP in another room this long before it is moved.",
           "min_rssi": "Weaker signals never move a device to another room (neighbouring AP). Tune during the pilot.",
-          "common_areas": "Areas such as Admin House: presence is shown, but there is no room status and no violation."
+          "common_areas": "Areas such as Admin House: presence is shown, but there is no room status and no violation.",
+          "sleep_timeout": "For a device whose last report was in Wi-Fi power save (screen off). 0 keeps the disconnect timeout for all devices."
         }
       },
       "device_list": {
@@ -162,6 +165,26 @@
           "exely_new_key": "The current key stops working immediately; enter the new key in Exely.",
           "exely_new_url": "The current URL stops working immediately; enter the new URL in Exely."
         }
+      },
+      "omada_webhook": {
+        "title": "Omada webhook (instant updates)",
+        "data": {
+          "omada_new_secret": "Generate a new Shard Secret"
+        },
+        "data_description": {
+          "omada_new_secret": "The current secret stops working immediately; enter the new one in Omada."
+        },
+        "description": "In the Omada controller: Settings → Services (or System) → Webhook → add a webhook:\nURL: {url}\nShard Secret: {secret}\nThen send the client events (connected / disconnected / roaming) and alerts to this webhook.\n\nAny message makes Hotel Sense poll the controller at once, so rooms update within seconds. The controller must reach Home Assistant on the local network. Messages received so far: {received}."
+      },
+      "omada_webhook_rotated": {
+        "title": "Omada webhook (instant updates)",
+        "data": {
+          "omada_new_secret": "Generate a new Shard Secret"
+        },
+        "data_description": {
+          "omada_new_secret": "The current secret stops working immediately; enter the new one in Omada."
+        },
+        "description": "⚠️ A new Shard Secret was generated: the old one no longer works. Enter the new one in Omada.\n\nIn the Omada controller: Settings → Services (or System) → Webhook → add a webhook:\nURL: {url}\nShard Secret: {secret}\nThen send the client events (connected / disconnected / roaming) and alerts to this webhook.\n\nAny message makes Hotel Sense poll the controller at once, so rooms update within seconds. The controller must reach Home Assistant on the local network. Messages received so far: {received}."
       }
     },
     "error": {
@@ -343,6 +366,84 @@
     "export_devices": {
       "name": "Export devices",
       "description": "Returns the device list as CSV."
+    },
+    "reconnect_client": {
+      "name": "Reconnect device",
+      "description": "Makes the controller disconnect a Wi-Fi device so that it reconnects (checks that it is really there).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "mac": {
+          "name": "MAC",
+          "description": "Device MAC address (any notation)."
+        }
+      }
+    },
+    "block_client": {
+      "name": "Block device",
+      "description": "Blocks a device on the network (Omada). Undo with Unblock device.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "mac": {
+          "name": "MAC",
+          "description": "Device MAC address (any notation)."
+        }
+      }
+    },
+    "unblock_client": {
+      "name": "Unblock device",
+      "description": "Lifts an Omada block of a device.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "mac": {
+          "name": "MAC",
+          "description": "Device MAC address (any notation)."
+        }
+      }
+    },
+    "ap_ssids": {
+      "name": "Access point SSIDs",
+      "description": "Lists which site SSIDs are enabled on each access point (or on the given one).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "access_point": {
+          "name": "Access point",
+          "description": "Access point MAC or name, or a room (Area): all its access points."
+        }
+      }
+    },
+    "set_ap_ssid": {
+      "name": "Enable / disable SSID on access point",
+      "description": "Turns one Wi-Fi network (SSID) on or off on an access point or on all access points of a room.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "access_point": {
+          "name": "Access point",
+          "description": "Access point MAC or name, or a room (Area): all its access points."
+        },
+        "ssid": {
+          "name": "SSID",
+          "description": "Network name as in Omada."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "On or off."
+        }
+      }
     }
   }
 }

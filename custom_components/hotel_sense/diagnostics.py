@@ -10,9 +10,13 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID, DOMAIN
+from .const import (
+    CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID, CONF_OMADA_WEBHOOK_ID, CONF_OMADA_WEBHOOK_SECRET,
+    DOMAIN,
+)
 
-TO_REDACT = {CONF_PASSWORD, CONF_USERNAME, CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID}
+TO_REDACT = {CONF_PASSWORD, CONF_USERNAME, CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID,
+             CONF_OMADA_WEBHOOK_ID, CONF_OMADA_WEBHOOK_SECRET}
 
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict:
@@ -27,7 +31,9 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             "access_points_offline": sum(1 for ap in controller.access_points.values() if not ap.online),
             "connected_clients": len(controller.clients),
             "wireless_clients": sum(1 for c in controller.clients.values() if c.wireless),
+            "power_save_clients": sum(1 for c in controller.clients.values() if c.power_save),
         },
+        "omada_webhook": controller.omada_webhook.diagnostics(),
         "exely_recent_events": list(controller.exely.recent),
         "rooms": {a: {"name": r.name, "status": r.status, "state": r.state}
                   for a, r in controller.presence.rooms.items()},

@@ -67,3 +67,34 @@ async def test_omada_6_3_end_to_end(hass, make_entry, aioclient_mock):
     assert method.upper() == "POST" and body["filters"] == {"active": True}
     # Authenticated with the CSRF token from the login.
     assert calls[-1][3]["Csrf-Token"] == "csrf-token"
+
+
+async def test_omada_6_3_commands_and_ssid(hass, make_entry, aioclient_mock):
+    """Reconnect and SSID change go to the controller's API as Omada expects."""
+    _controller(aioclient_mock, [client_raw(GUEST_PHONE, "Guest-Phone")])
+    api = f"{URL}/{CID}/api/v2/sites/{SITE_ID}"
+    mock = _Json(aioclient_mock)
+    mock.post(f"{api}/cmd/clients/{GUEST_PHONE}/reconnect", json=_ok({}))
+    overrides = [{"index": 0, "globalSsid": "Guest", "ssidEnable": True},
+                 {"index": 1, "globalSsid": "Staff", "ssidEnable": True}]
+    mock.get(f"{api}/eaps/{AP_WF06}", json=_ok({"wlanId": "w-1", "ssidOverrides": overrides}))
+    mock.patch(f"{api}/eaps/{AP_WF06}", json=_ok({}))
+
+    entry = make_entry()
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(DOMAIN, "reconnect_client", {"mac": GUEST_PHONE}, blocking=True)
+    resp = await hass.services.async_call(
+        DOMAIN, "set_ap_ssid", {"access_point": "WF06", "ssid": "Staff", "enabled": False},
+        blocking=True, return_response=True)
+    assert resp["changed"] == [AP_WF06]
+
+    calls = {(c[0].upper(), str(c[1]).split("/api/v2/")[-1]): c for c in aioclient_mock.mock_calls}
+    assert ("POST", f"sites/{SITE_ID}/cmd/clients/{GUEST_PHONE}/reconnect") in calls
+    patch_call = calls[("PATCH", f"sites/{SITE_ID}/eaps/{AP_WF06}")]
+    assert patch_call[2] == {"wlanId": "w-1", "ssidOverrides": [
+        {"index": 0, "globalSsid": "Guest", "ssidEnable": True},
+        {"index": 1, "globalSsid": "Staff", "ssidEnable": False}]}
+    assert patch_call[3]["Csrf-Token"] == "csrf-token"

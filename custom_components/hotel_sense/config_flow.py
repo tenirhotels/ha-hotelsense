@@ -33,9 +33,12 @@ from .const import (
     CONF_ROAMING_DEBOUNCE,
     CONF_MIN_RSSI,
     CONF_COMMON_AREAS,
+    CONF_SLEEP_TIMEOUT,
+    DEFAULT_SLEEP_TIMEOUT,
     CONF_EXELY_NEW_KEY,
     CONF_EXELY_NEW_URL,
     CONF_EXELY_ROOM_MAP,
+    CONF_OMADA_NEW_SECRET,
     LEGACY_OPTIONS,
     DEFAULT_PRESENCE_TIMEOUT,
     DEFAULT_ROAMING_DEBOUNCE,
@@ -159,7 +162,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_menu(
             step_id="init",
-            menu_options=["device_tracker", "presence", "device_list", "exely"],
+            menu_options=["device_tracker", "omada_webhook", "presence", "device_list", "exely"],
         )
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -181,6 +184,25 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                 ),
             }),
         )
+
+    async def async_step_omada_webhook(self, user_input: dict[str, Any] | None = None,
+                                       step_id: str = "omada_webhook") -> ConfigFlowResult:
+        """Show the webhook address and Shard Secret to enter in the Omada controller."""
+        receiver = self.controller.omada_webhook
+        if user_input is not None:
+            if not user_input.get(CONF_OMADA_NEW_SECRET):
+                return await self._update_options()
+            receiver.async_rotate_secret()
+            step_id = "omada_webhook_rotated"
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=vol.Schema({vol.Optional(CONF_OMADA_NEW_SECRET, default=False): bool}),
+            description_placeholders={"url": receiver.url(), "secret": receiver.secret,
+                                      "received": str(receiver.received)},
+        )
+
+    async def async_step_omada_webhook_rotated(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self.async_step_omada_webhook(user_input)
 
     async def _update_options(self) -> ConfigFlowResult:
         return self.async_create_entry(title="", data=self.options)
@@ -222,6 +244,11 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                     default=self.options.get(CONF_MIN_RSSI, DEFAULT_MIN_RSSI),
                 ): NumberSelector(NumberSelectorConfig(
                     min=-100, max=0, mode=NumberSelectorMode.BOX, unit_of_measurement="dBm")),
+                vol.Optional(
+                    CONF_SLEEP_TIMEOUT,
+                    default=self.options.get(CONF_SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=0, max=120, mode=NumberSelectorMode.BOX, unit_of_measurement="min")),
                 vol.Optional(CONF_COMMON_AREAS, default=common_default): SelectSelector(
                     SelectSelectorConfig(options=area_options, multiple=True,
                                          mode=SelectSelectorMode.LIST)),

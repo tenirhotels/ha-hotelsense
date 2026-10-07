@@ -18,7 +18,8 @@ from typing import Any
 from aiohttp import CookieJar
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
-from tplink_omada_client import OmadaClient, OmadaSite, OmadaSiteClient
+from tplink_omada_client import OmadaSiteClient
+from tplink_omada_client.omadaapiconnection import OmadaApiConnection
 from tplink_omada_client.definitions import DeviceStatusCategory
 from tplink_omada_client.exceptions import (
     BadControllerUrl,
@@ -112,7 +113,12 @@ def client_from(raw: Mapping[str, Any]) -> ConnectedClient | None:
 
 
 class OmadaHub:
-    """Login, site selection and polling. Raises ``tplink_omada_client`` exceptions."""
+    """Login, site selection, polling and commands.
+
+    Raises ``tplink_omada_client`` exceptions. Built on the library's connection
+    (login, CSRF token, re-login) and site client; endpoints the library has no
+    function for (SSID per access point) go through the same connection.
+    """
 
     def __init__(self, hass: HomeAssistant, url: str, username: str, password: str,
                  site: str, verify_ssl: bool) -> None:
@@ -122,8 +128,8 @@ class OmadaHub:
         # cookies the shared session's (safe) cookie jar would refuse.
         session = aiohttp_client.async_create_clientsession(
             hass, verify_ssl=verify_ssl, cookie_jar=CookieJar(unsafe=True))
-        self._client = OmadaClient(self.url, username, password, websession=session,
-                                   verify_ssl=verify_ssl)
+        self._api = OmadaApiConnection(self.url, username, password, websession=session,
+                                       verify_ssl=verify_ssl)
         self._site: OmadaSiteClient | None = None
         self.controller_id: str = ""
         self.site_id: str = ""
@@ -132,28 +138,72 @@ class OmadaHub:
 
     async def async_connect(self) -> None:
         """Log in and select the site (by its display name, as configured)."""
-        self.controller_id = await self._client.login()
-        self.version = str(await self._client.get_controller_version())
+        self.controller_id = await self._api.login()
+        self.version = str(await self._api.get_controller_version())
         try:
-            self.name = await self._client.get_controller_name() or self.name
+            ui = await self._api.request("get", self._api.format_url("maintenance/uiInterface"))
+            self.name = ui.get("controllerName") or self.name
         except OmadaClientException:
             pass  # cosmetic only
-        sites = await self._client.get_sites()
-        site = next((s for s in sites if s.name == self.site_name), None)
+        user = await self._api.request("get", self._api.format_url("users/current"))
+        sites = user.get("privilege", {}).get("sites", [])
+        site = next((s for s in sites if s.get("name") == self.site_name), None)
         if site is None:
             raise SiteNotFound(f"Site '{self.site_name}' not found")
-        self.site_id = site.id
-        self._site = await self._client.get_site_client(OmadaSite(site.name, site.id))
+        self.site_id = site["key"]
+        self._site = OmadaSiteClient(self.site_id, self._api)
+
+    @property
+    def site(self) -> OmadaSiteClient:
+        assert self._site is not None, "async_connect() first"
+        return self._site
 
     async def async_poll(self) -> tuple[dict[str, AccessPoint], dict[str, ConnectedClient]]:
         """Access points and connected clients of the site (re-logs in as needed)."""
-        assert self._site is not None, "async_connect() first"
         aps: dict[str, AccessPoint] = {}
-        for device in await self._site.get_devices():
+        for device in await self.site.get_devices():
             if (ap := access_point_from(device.raw_data)) is not None:
                 aps[ap.mac] = ap
         clients: dict[str, ConnectedClient] = {}
-        async for client in self._site.get_connected_clients():
+        async for client in self.site.get_connected_clients():
             if (item := client_from(client.raw_data)) is not None:
                 clients[item.mac] = item
         return aps, clients
+
+    # -- client commands ------------------------------------------------------ #
+    async def async_reconnect_client(self, mac: str) -> None:
+        await self.site.reconnect_client(mac)
+
+    async def async_block_client(self, mac: str) -> None:
+        await self.site.block_client(mac)
+
+    async def async_unblock_client(self, mac: str) -> None:
+        await self.site.unblock_client(mac)
+
+    # -- SSIDs of an access point --------------------------------------------- #
+    def _ap_url(self, ap_mac: str) -> str:
+        return self._api.format_url(f"eaps/{ap_mac}", self.site_id)
+
+    async def async_ap_ssids(self, ap_mac: str) -> list[dict[str, Any]]:
+        """The site SSIDs as configured on one access point: name and enabled."""
+        details = await self._api.request("get", self._ap_url(ap_mac))
+        return [{"ssid": o.get("globalSsid"), "enabled": bool(o.get("ssidEnable", True))}
+                for o in details.get("ssidOverrides") or []]
+
+    async def async_set_ap_ssid(self, ap_mac: str, ssid: str, enabled: bool) -> bool:
+        """Enable / disable ``ssid`` on one access point. Returns False if unchanged.
+
+        Omada keeps one override entry per site SSID on each access point; the
+        whole list is sent back with only ``ssidEnable`` of that SSID changed.
+        """
+        details = await self._api.request("get", self._ap_url(ap_mac))
+        overrides = [dict(o) for o in details.get("ssidOverrides") or []]
+        target = next((o for o in overrides if o.get("globalSsid") == ssid), None)
+        if target is None:
+            raise ValueError(f"SSID {ssid!r} is not configured on access point {ap_mac}")
+        if bool(target.get("ssidEnable", True)) == enabled:
+            return False
+        target["ssidEnable"] = enabled
+        await self._api.request("patch", self._ap_url(ap_mac), json={
+            "wlanId": details.get("wlanId"), "ssidOverrides": overrides})
+        return True
