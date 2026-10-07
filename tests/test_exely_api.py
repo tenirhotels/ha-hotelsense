@@ -14,7 +14,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.hotel_sense import exely_api
 from custom_components.hotel_sense.const import (
-    CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_EXELY_PROPERTY_ID, EVENT_EXELY,
+    DOMAIN, CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_EXELY_PROPERTY_ID, EVENT_EXELY,
 )
 from custom_components.hotel_sense.diagnostics import async_get_config_entry_diagnostics
 from custom_components.hotel_sense.exely_api import (
@@ -425,14 +425,16 @@ async def test_options_reject_bad_credentials(hass, make_entry, patch_api, aiocl
     assert CONF_EXELY_CLIENT_ID not in entry.data  # not saved
 
 
-@pytest.mark.parametrize(("setup", "error"), [
-    ({"status": 404}, {CONF_EXELY_PROPERTY_ID: "exely_property_not_found"}),
-    ({"exc": ClientError("down")}, {"base": "exely_cannot_connect"}),
+@pytest.mark.parametrize(("token", "rooms", "error"), [
+    ({"json": {"access_token": "jwt"}}, {"status": 404},
+     {CONF_EXELY_PROPERTY_ID: "exely_property_not_found"}),
+    ({"exc": ClientError("down")}, {"json": ROOMS}, {"base": "exely_cannot_connect"}),
+    ({"status": 500}, {"json": ROOMS}, {"base": "exely_cannot_connect"}),
 ])
 async def test_options_property_errors(hass, make_entry, patch_api, aioclient_mock, no_sleep,
-                                       setup, error):
-    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
-    aioclient_mock.get(ROOMS_URL, **setup)
+                                       token, rooms, error):
+    aioclient_mock.post(AUTH_URL, **token)
+    aioclient_mock.get(ROOMS_URL, **rooms)
     entry = await _exely_hotel(hass, make_entry)
     result = await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client",
                                            CONF_EXELY_CLIENT_SECRET: "secret",
@@ -466,15 +468,55 @@ async def test_non_json_answer_is_an_api_error(hass, aioclient_mock, no_sleep):
 
 async def test_options_show_why_the_check_failed(hass, make_entry, patch_api, aioclient_mock,
                                                  no_sleep, caplog):
-    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
-    aioclient_mock.get(ROOMS_URL, status=400, text='{"message": "maxPageSize is invalid"}')
+    aioclient_mock.post(AUTH_URL, status=503, text='{"message": "maintenance"}')
     entry = await _exely_hotel(hass, make_entry)
     result = await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client",
                                            CONF_EXELY_CLIENT_SECRET: "secret",
                                            CONF_EXELY_PROPERTY_ID: PROP})
     assert result["errors"] == {"base": "exely_cannot_connect"}
-    assert "maxPageSize is invalid" in result["description_placeholders"]["status"]
-    assert "Exely API check failed" in caplog.text and "HTTP 400" in caplog.text
+    assert "maintenance" in result["description_placeholders"]["status"]
+    assert "Exely API check failed" in caplog.text and "HTTP 503" in caplog.text
+
+
+ROOM_LIST_500 = {"status": 500,
+                 "text": '{"errors":[{"code":"InternalError","message":"An error has occured"}]}'}
+
+
+async def test_failing_room_list_does_not_block_setup(hass, make_entry, patch_api, aioclient_mock,
+                                                      no_sleep):
+    """Exely answered HTTP 500 for the room list: sign-in works, so save; rooms by roomId."""
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(ROOMS_URL, **ROOM_LIST_500)
+    entry = await _exely_hotel(hass, make_entry)
+    result = await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client",
+                                           CONF_EXELY_CLIENT_SECRET: "secret",
+                                           CONF_EXELY_PROPERTY_ID: PROP})
+    assert result["type"] == "create_entry" and entry.data[CONF_EXELY_CLIENT_ID] == "client"
+    api = hass.data[DOMAIN][entry.entry_id].exely.api
+    assert api.last_error is None and "room list unavailable" in api.last_check
+    assert "InternalError" in api.rooms_error
+
+
+async def test_rooms_matched_by_id_when_room_list_fails(hass, make_entry, patch_api,
+                                                        hass_client_no_auth, aioclient_mock,
+                                                        no_sleep):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(ROOMS_URL, **ROOM_LIST_500)
+    aioclient_mock.get(_booking_url(), json=_reservation((ROOM_07, "CheckedIn")))
+    entry = await _api_hotel(hass, make_entry, {"exely_room_map": f"{ROOM_07} = Room 07"})
+    client = await hass_client_no_auth()
+    await _post(client, entry, _event("webpms:check_in", event_id="e1"))
+    await hass.async_block_till_done()
+    assert _state(hass, "select.room_07_status") == "checked_in"
+    room_list_calls = _calls(aioclient_mock, ROOMS_URL)
+
+    # Unmapped room: unresolved with its roomId, no new room-list request within the hour.
+    aioclient_mock.get(_booking_url("B-2"), json=_reservation(("555", "CheckedIn")))
+    await _post(client, entry, _event("webpms:check_in", number="B-2", event_id="e2"))
+    await hass.async_block_till_done()
+    last = hass.states.get("sensor.hotel_sense_exely_last_event")
+    assert last.state == "unmatched" and last.attributes["unresolved"] == ["555"]
+    assert _calls(aioclient_mock, ROOMS_URL) == room_list_calls
 
 
 async def test_menu_and_page_show_what_is_set_up(hass, make_entry, patch_api, exely):
@@ -496,3 +538,30 @@ async def test_menu_and_page_show_what_is_set_up(hass, make_entry, patch_api, ex
     page = await _options_menu(hass, entry, "exely_api")
     assert page["description_placeholders"]["status"] == status
     assert page["description_placeholders"]["secret_saved"] == "yes"
+
+
+async def test_probe_service_reports_what_exely_answers(hass, make_entry, patch_api,
+                                                        aioclient_mock, no_sleep):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(f"{ROOMS_URL}?maxPageSize=100", json=ROOMS)
+    aioclient_mock.get(ROOMS_URL, status=500, headers={"x-request-id": "abc123"},
+                       text='{"errors":[{"code":"InternalError"}]}')
+    aioclient_mock.get(_booking_url(), json=_reservation((ROOM_06, "CheckedIn")))
+    entry = await _api_hotel(hass, make_entry)
+    result = await hass.services.async_call(DOMAIN, "exely_api_probe", {"booking": BOOKING},
+                                            blocking=True, return_response=True)
+    assert result["sign_in"] == "ok" and result["property_id"] == PROP
+    assert not result["rooms"]["ok"] and "InternalError" in result["rooms"]["error"]
+    assert "request_id: abc123" in result["rooms"]["error"]
+    assert result["rooms_max_page_size"] == {"ok": True, "rooms": 2, "shape": shape(ROOMS)}
+    assert result["reservation"]["stays"][0]["room_id"] == ROOM_06
+    assert "***" not in repr(result)  # structure only, no guest values
+    assert _calls(aioclient_mock, ROOMS_URL) == 2  # no retries
+
+
+async def test_probe_service_needs_the_api(hass, make_entry, patch_api):
+    from homeassistant.exceptions import ServiceValidationError
+    await _exely_hotel(hass, make_entry)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(DOMAIN, "exely_api_probe", {}, blocking=True,
+                                       return_response=True)

@@ -27,6 +27,8 @@ SERVICE_BLOCK_CLIENT = "block_client"
 SERVICE_UNBLOCK_CLIENT = "unblock_client"
 SERVICE_AP_SSIDS = "ap_ssids"
 SERVICE_SET_AP_SSID = "set_ap_ssid"
+SERVICE_EXELY_API_PROBE = "exely_api_probe"
+ATTR_BOOKING = "booking"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MAPPING = "mapping"
@@ -172,6 +174,17 @@ def async_register_services(hass: HomeAssistant) -> None:
                            vol.Required(ATTR_ENABLED): cv.boolean}),
         supports_response=SupportsResponse.OPTIONAL)
 
+    async def exely_api_probe(call: ServiceCall) -> ServiceResponse:
+        receiver = _controller(hass, call).exely
+        if not receiver.api.configured or not receiver.property_id:
+            raise ServiceValidationError("Exely API is not set up (Hotel Sense options)")
+        booking = (call.data.get(ATTR_BOOKING) or "").strip() or None
+        return await receiver.api.async_probe(receiver.property_id, booking)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_EXELY_API_PROBE, exely_api_probe,
+        schema=vol.Schema({**entry_field, vol.Optional(ATTR_BOOKING): cv.string}),
+        supports_response=SupportsResponse.ONLY)
     hass.services.async_register(
         DOMAIN, SERVICE_AP_AREA_REPORT, report, schema=vol.Schema(_TABLE_SCHEMA),
         supports_response=SupportsResponse.ONLY)

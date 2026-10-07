@@ -58,7 +58,6 @@ BOOKING_CACHE_SECONDS = 30 * 24 * 3600
 BOOKING_CACHE_SIZE = 300
 ROOMS_MAX_AGE = 24 * 3600
 ROOMS_UNKNOWN_REFRESH = 3600   # refresh for an unknown roomId at most this often
-ROOMS_PAGE_SIZE = 100
 RECENT_LOOKUPS = 10
 
 _sleep = asyncio.sleep  # patched in tests
@@ -234,6 +233,7 @@ class ExelyApi:
         self.token_requests = 0
         self.last_error: str | None = None
         self.last_check: str | None = None  # result of the last options check
+        self.rooms_error: str | None = None  # room list failing (rooms then matched by ID)
         self.recent: deque[dict] = deque(maxlen=RECENT_LOOKUPS)
 
     @property
@@ -300,9 +300,9 @@ class ExelyApi:
             return token
 
     # -- requests ---------------------------------------------------------- #
-    async def _get(self, path: str, params: dict | None = None) -> Any:
+    async def _get(self, path: str, params: dict | None = None, *, retries: int = RETRIES) -> Any:
         error: Exception | None = None
-        for attempt in range(RETRIES + 1):
+        for attempt in range(retries + 1):
             if attempt:
                 await _sleep(self.retry_delay)
             token = await self._get_token()
@@ -312,14 +312,14 @@ class ExelyApi:
                     resp = await self._session.get(
                         f"{PMS_URL}{path}", params=params,
                         headers={"Authorization": f"Bearer {token}"})
-                    if resp.status == 401 and attempt < RETRIES:
+                    if resp.status == 401 and attempt < retries:
                         self._token = None  # expired early: one new token
                         error = ExelyAuthError("HTTP 401")
                         continue
                     if resp.status == 429:
                         retry_after = _retry_after(resp.headers.get("retry-after"))
                         error = ExelyApiError("HTTP 429 (Exely rate limit)")
-                        if retry_after > MAX_RETRY_AFTER or attempt == RETRIES:
+                        if retry_after > MAX_RETRY_AFTER or attempt == retries:
                             break
                         await _sleep(retry_after)
                         continue
@@ -355,26 +355,46 @@ class ExelyApi:
         if cached and fresh and not refresh:
             return cached["rooms"]
         rooms: dict[str, str] = {}
-        params: dict[str, Any] = {"maxPageSize": ROOMS_PAGE_SIZE}
-        for _ in range(20):  # 2000 rooms at most
+        # Exely's default page size: an explicit maxPageSize is not needed.
+        params: dict[str, Any] | None = None
+        self._rooms_checked[property_id] = self._clock()
+        for _ in range(50):
             page, token = parse_rooms(await self._get(f"/v2/properties/{property_id}/rooms", params))
             rooms.update(page)
             if not token:
                 break
             params = {"pageToken": token}
         data[property_id] = {"fetched": dt_util.utcnow().isoformat(), "rooms": rooms}
-        self._rooms_checked[property_id] = self._clock()
         await self._rooms_store.async_save(data)
+        self.rooms_error = None
         return rooms
 
     async def async_room_name(self, property_id: str, room_id: str) -> str | None:
-        rooms = await self.async_rooms(property_id)
-        if room_id in rooms:
-            return rooms[room_id]
+        """Name of a room, or None. A failing room list is not fatal: the room is
+        then matched by its ``roomId`` (room mapping), and the list is retried
+        at most once an hour."""
+        data = await self._rooms_data()
+        cached = (data.get(property_id) or {}).get("rooms") or {}
         last = self._rooms_checked.get(property_id)
-        if last is not None and self._clock() - last < ROOMS_UNKNOWN_REFRESH:
+        recently = last is not None and self._clock() - last < ROOMS_UNKNOWN_REFRESH
+        if room_id in cached:
+            if not recently:  # daily refresh, if due
+                cached = await self._rooms_or_cached(property_id, cached)
+            return cached.get(room_id)
+        if recently:
             return None
-        return (await self.async_rooms(property_id, refresh=True)).get(room_id)
+        return (await self._rooms_or_cached(property_id, cached, refresh=True)).get(room_id)
+
+    async def _rooms_or_cached(self, property_id: str, cached: dict[str, str],
+                               *, refresh: bool = False) -> dict[str, str]:
+        try:
+            return await self.async_rooms(property_id, refresh=refresh)
+        except ExelyAuthError:
+            raise
+        except ExelyApiError as err:
+            self.rooms_error = f"{type(err).__name__}: {err}"
+            LOGGER.warning("Exely room list unavailable, rooms are matched by roomId: %s", err)
+            return cached
 
     # -- reservations ------------------------------------------------------ #
     def forget(self, property_id: str, number: str) -> None:
@@ -412,17 +432,69 @@ class ExelyApi:
         finally:
             self._inflight.pop(key, None)
 
-    async def async_check(self, property_id: str) -> int:
-        """Connection test for the options: token + room list. Returns the room count."""
-        try:
-            count = len(await self.async_rooms(property_id, refresh=True))
-        except ExelyApiError as err:
+    async def async_check(self, property_id: str) -> int | None:
+        """Connection test for the options: token, then the room list.
+
+        Rejected credentials or an unknown property fail the check. A room list
+        that fails otherwise (Exely answered HTTP 500 for it) does not: rooms
+        are then matched by ``roomId``. Returns the room count, or None.
+        """
+        def failed(err: ExelyApiError) -> None:
             self.last_error = f"{type(err).__name__}: {err}"
             self.last_check = f"failed {_now_text()}"
+
+        try:
+            await self._get_token()
+        except ExelyApiError as err:
+            failed(err)
             raise
+        try:
+            count: int | None = len(await self.async_rooms(property_id, refresh=True))
+        except (ExelyAuthError, ExelyNotFound) as err:
+            failed(err)
+            raise
+        except ExelyApiError as err:
+            self.rooms_error = f"{type(err).__name__}: {err}"
+            LOGGER.warning("Exely API: sign-in OK, room list unavailable: %s", err)
+            count = None
         self.last_error = None
-        self.last_check = f"OK {_now_text()}, {count} rooms"
+        self.last_check = (f"OK {_now_text()}, {count} rooms" if count is not None else
+                           f"sign-in OK {_now_text()}; room list unavailable "
+                           f"({self.rooms_error}), rooms are matched by roomId")
         return count
+
+    async def async_probe(self, property_id: str, booking: str | None = None) -> dict:
+        """One request per endpoint, no retries: what Exely answers (shape, no values).
+
+        For finding out why a call fails (and for Exely support: the error text
+        carries the request_id). At most 4 requests.
+        """
+        result: dict[str, Any] = {"property_id": property_id}
+        try:
+            await self._get_token()
+        except ExelyApiError as err:
+            result["sign_in"] = f"{type(err).__name__}: {err}"
+            return result
+        result["sign_in"] = "ok"
+        calls = [("rooms", f"/v2/properties/{property_id}/rooms", None),
+                 ("rooms_max_page_size", f"/v2/properties/{property_id}/rooms",
+                  {"maxPageSize": 100})]
+        if booking:
+            calls.append(("reservation",
+                          f"/v2/properties/{property_id}/reservations/{booking}", None))
+        for name, path, params in calls:
+            try:
+                data = await self._get(path, params, retries=0)
+            except ExelyApiError as err:
+                result[name] = {"ok": False, "error": f"{type(err).__name__}: {err}"}
+                continue
+            entry: dict[str, Any] = {"ok": True, "shape": shape(data)}
+            if name.startswith("rooms"):
+                entry["rooms"] = len(parse_rooms(data)[0])
+            else:
+                entry["stays"] = [asdict(s) for s in parse_reservation(data)]
+            result[name] = entry
+        return result
 
     def diagnostics(self) -> dict:
         rooms = self._rooms or {}
@@ -433,6 +505,7 @@ class ExelyApi:
             "token_requests": self.token_requests,
             "last_error": self.last_error,
             "last_check": self.last_check,
+            "rooms_error": self.rooms_error,
             "cached_bookings": len(self._bookings),
             "rooms": {p: {"fetched": r.get("fetched"), "rooms": r.get("rooms")}
                       for p, r in rooms.items()},
@@ -452,6 +525,10 @@ async def _describe(resp: aiohttp.ClientResponse, secret: str | None = None) -> 
         text = ""
     if secret:
         text = text.replace(secret, "***")
+    request_id = next((resp.headers[h] for h in ("request-id", "x-request-id", "request_id")
+                       if h in resp.headers), None)
+    if request_id and request_id not in text:
+        text = f"{text} (request_id: {request_id})".strip()
     return f"HTTP {resp.status}: {text}" if text else f"HTTP {resp.status}"
 
 

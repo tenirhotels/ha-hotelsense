@@ -121,7 +121,9 @@ Requests are kept to a minimum, Exely is only called when a webhook needs a room
   `429 retry-after` is honoured; at most 2 retries.
 
 Exely room names are matched to Areas like webhook room names (the room
-mapping applies). For a booking with several rooms, only the room stays Exely
+mapping applies). If Exely does not deliver the room list, rooms are matched
+by their Exely `roomId` instead: map `roomId = Area` in the room mapping (an
+unmatched event shows the `roomId`). For a booking with several rooms, only the room stays Exely
 shows with the event's status change. If the API fails, the event shows
 `api_error`. Only room stay IDs, statuses and dates are used; diagnostics show
 the response *structure* without values, plus request counters.
@@ -206,6 +208,7 @@ recent messages (without the secret) are in the diagnostics.
 | `hotel_sense.block_client` / `unblock_client` | Blocks / unblocks a device (`mac`) in Omada |
 | `hotel_sense.ap_ssids` | Which SSIDs are enabled on each access point (or on `access_point`) |
 | `hotel_sense.set_ap_ssid` | Turns an SSID on/off on an access point: `access_point` = MAC, AP name or a room (all its APs), `ssid`, `enabled` |
+| `hotel_sense.exely_api_probe` | Asks Exely once per endpoint (sign-in, room list with and without `maxPageSize`, the reservation for an optional `booking`) and returns the answer: structure without values, or the error with its `request_id` for Exely support |
 
 Nothing calls them automatically yet; they are the building blocks for later
 automations (e.g. room SSID off at check-out).
