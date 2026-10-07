@@ -329,6 +329,17 @@ The database user needs the right to create views (the MariaDB add-on's
   own devices only), traffic.
 * `hotel_sense.hotel_report` — the same period for all rooms: violations,
   status changes, staff time and visits, guest traffic.
+* `hotel_sense.device_route` — `mac` and a period: where the device was, in
+  order (zone, arrival, departure, time there, time off Wi-Fi before it); stops
+  in the same zone a few minutes apart are merged, the current zone is
+  included. For following staff through the hotel.
+* `hotel_sense.device_candidates` — devices not in the device list that
+  behave like the hotel's own over the last `days` (14): in `min_rooms_per_day`
+  (3) guest rooms on one day, or seen on `min_days` (5) days without living in
+  one guest room → *employee*; always on in one zone → *fixed*. With the
+  reasons and an `import_csv` to check, add names to and paste into
+  `hotel_sense.import_devices`. Rooms do not hear each other's devices here, so
+  a device in several guest rooms really went there.
 
 ## Installation
 

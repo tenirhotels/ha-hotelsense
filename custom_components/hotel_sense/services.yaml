@@ -175,3 +175,54 @@ hotel_report:
           min: 1
           max: 8784
           mode: box
+device_route:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    mac:
+      required: true
+      example: "AA-BB-CC-DD-EE-FF"
+      selector:
+        text:
+    start:
+      selector:
+        datetime:
+    end:
+      selector:
+        datetime:
+    hours:
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 8784
+          mode: box
+device_candidates:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    days:
+      default: 14
+      selector:
+        number:
+          min: 1
+          max: 366
+          mode: box
+    min_days:
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 366
+          mode: box
+    min_rooms_per_day:
+      default: 3
+      selector:
+        number:
+          min: 2
+          max: 100
+          mode: box

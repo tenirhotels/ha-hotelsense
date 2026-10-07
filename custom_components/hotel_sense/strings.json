@@ -571,6 +571,54 @@
           "description": "Length of the period when no start is given."
         }
       }
+    },
+    "device_route": {
+      "name": "Device route",
+      "description": "Where one device was in a period, in order, from the history database: zone, arrival, departure, time there and the gap before (time the device was off Wi-Fi). Shows how staff move through the hotel.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "mac": {
+          "name": "MAC address",
+          "description": "The device's MAC address."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Start of the period (default: end minus hours)."
+        },
+        "end": {
+          "name": "End",
+          "description": "End of the period (default: now)."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "Length of the period when no start is given."
+        }
+      }
+    },
+    "device_candidates": {
+      "name": "Unregistered staff devices",
+      "description": "Devices not in the device list that behave like the hotel's own: back day after day, going from guest room to guest room (employee), or always on in one place (fixed). Returns the reasons and a CSV for Import devices once checked.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "days": {
+          "name": "Days",
+          "description": "How many days back to look."
+        },
+        "min_days": {
+          "name": "Minimum days",
+          "description": "A device seen on at least this many days is a candidate (guests stay a few nights)."
+        },
+        "min_rooms_per_day": {
+          "name": "Guest rooms per day",
+          "description": "A device in at least this many guest rooms on one day is a candidate."
+        }
+      }
     }
   }
 }

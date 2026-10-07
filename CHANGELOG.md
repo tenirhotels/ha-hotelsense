@@ -1,3 +1,7 @@
+# Hotel Sense 0.10.0
+- Action `hotel_sense.device_route`: where a device was in a period, in order - zone, arrival, departure, time there and the time off Wi-Fi before it (short drops in the same zone merged, the current zone included). Built on the presence sessions already in the history database
+- Action `hotel_sense.device_candidates`: devices missing from the device list that look like staff (several guest rooms in one day, or back day after day without living in one guest room) or fixed equipment (always on in one zone), with the reasons, random-MAC flag, SSIDs and a CSV ready for `hotel_sense.import_devices`
+
 # Hotel Sense 0.9.1
 - Room status: the same status with a new source, booking or user (e.g. manual check-in, then Exely confirms it with the booking) now updates them; `changed_at` stays the time the status itself changed, and no new history row is written for it (it used to be ignored)
 - Room model: `exely_room_name` next to `exely_room_ids` (the PMS roomIds); labels entered before stay in `exely_room_ids` unchanged and keep matching. Storage minor version 2, migrated in place (labels normalised: strings, no empties, no duplicates, order kept)
