@@ -302,3 +302,10 @@ async def test_cancelled_check_in_and_check_out_undo_the_status(hass, make_entry
         await _post(client, entry, {"event": event, "room": "06"})
         await hass.async_block_till_done()
         assert _state(hass, "select.room_06_status") == expected, event
+
+
+async def test_room_mapping_can_be_cleared(hass, make_entry, patch_api):
+    entry = await _exely_hotel(hass, make_entry, {CONF_EXELY_ROOM_MAP: "101 = Room 07"})
+    result = await _options_menu(hass, entry, "exely")
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {})
+    assert result["type"] == "create_entry" and entry.options[CONF_EXELY_ROOM_MAP] == ""

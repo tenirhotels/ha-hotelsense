@@ -1,3 +1,6 @@
+# Hotel Sense 0.6.4
+- Settings: cleared fields stay cleared. Exely API (client ID), history database (user) and the Exely room mapping were pre-filled as defaults, so Home Assistant put the old value back when a field was emptied - the API / history could not be switched off and the mapping not cleared. They are now suggested values
+
 # Hotel Sense 0.6.3
 - `exely_api_probe` also asks the Content API (property) and, with a booking number, the Read Reservation API: shows whether other Exely APIs answer when the PMS API fails
 

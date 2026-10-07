@@ -316,3 +316,13 @@ async def test_options_show_database_errors(hass, make_entry, patch_api, code, e
         result = await _db_step(hass, entry, {**DB})
     assert result["type"] == "form" and result["errors"] == {"base": error}
     assert CONF_DB_USERNAME not in entry.data
+
+
+async def test_cleared_user_switches_the_history_off(hass, make_entry, patch_api, db_url):
+    entry = _entry_with_db(make_entry)
+    await _db_hotel(hass, entry)
+    result = await _db_step(hass, entry, {})  # every field cleared
+    await hass.async_block_till_done()
+    assert result["type"] == "create_entry"
+    assert CONF_DB_USERNAME not in entry.data and CONF_DB_PASSWORD not in entry.data
+    assert hass.data[DOMAIN][entry.entry_id].history is None

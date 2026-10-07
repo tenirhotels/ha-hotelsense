@@ -593,3 +593,18 @@ def test_documented_pms_api_shapes():
     rooms = {"warnings": [], "errors": [], "nextPageToken": "p2", "hasNextPage": True,
              "rooms": [{"id": ROOM_06, "displayName": "06", "roomTypeId": "315367", "floorId": "2"}]}
     assert parse_rooms(rooms) == ({ROOM_06: "06"}, "p2")
+
+
+async def test_cleared_fields_switch_the_api_off(hass, make_entry, patch_api, exely):
+    """The frontend leaves cleared optional fields out: they must not come back."""
+    entry = await _exely_hotel(hass, make_entry)
+    await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client", CONF_EXELY_CLIENT_SECRET: "s",
+                                  CONF_EXELY_PROPERTY_ID: PROP})
+    assert entry.data[CONF_EXELY_CLIENT_ID] == "client"
+    page = await _options_menu(hass, entry, "exely_api")
+    schema = page["data_schema"].schema
+    key = next(k for k in schema if k == CONF_EXELY_CLIENT_ID)
+    assert key.description == {"suggested_value": "client"}  # shown, but not a default
+    result = await hass.config_entries.options.async_configure(page["flow_id"], {})
+    assert result["type"] == "create_entry"
+    assert CONF_EXELY_CLIENT_ID not in entry.data and CONF_EXELY_CLIENT_SECRET not in entry.data
