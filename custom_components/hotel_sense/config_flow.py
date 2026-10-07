@@ -472,8 +472,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id=step_id,
             data_schema=vol.Schema({
-                vol.Optional(CONF_EXELY_ROOM_MAP,
-                             default=self.options.get(CONF_EXELY_ROOM_MAP, "")):
+                vol.Optional(CONF_EXELY_ROOM_MAP, description={
+                    "suggested_value": self.options.get(CONF_EXELY_ROOM_MAP, "")}):
                     TextSelector(TextSelectorConfig(multiline=True)),
                 vol.Optional(CONF_EXELY_NEW_KEY, default=False): bool,
                 vol.Optional(CONF_EXELY_NEW_URL, default=False): bool,
@@ -530,13 +530,15 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             step_id="exely_api",
             errors=errors,
             data_schema=vol.Schema({
-                vol.Optional(CONF_EXELY_CLIENT_ID,
-                             default=current.get(CONF_EXELY_CLIENT_ID) or ""): str,
+                # Suggested, not default: a cleared field must stay empty
+                # (empty client ID = Exely API off).
+                vol.Optional(CONF_EXELY_CLIENT_ID, description={
+                    "suggested_value": current.get(CONF_EXELY_CLIENT_ID) or ""}): str,
                 # Never shown again: empty keeps the saved secret.
-                vol.Optional(CONF_EXELY_CLIENT_SECRET, default=""):
+                vol.Optional(CONF_EXELY_CLIENT_SECRET):
                     TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
-                vol.Optional(CONF_EXELY_PROPERTY_ID,
-                             default=current.get(CONF_EXELY_PROPERTY_ID) or ""): str,
+                vol.Optional(CONF_EXELY_PROPERTY_ID, description={
+                    "suggested_value": current.get(CONF_EXELY_PROPERTY_ID) or ""}): str,
             }),
             description_placeholders={
                 "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no",
@@ -584,17 +586,19 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             step_id="database",
             errors=errors,
             data_schema=vol.Schema({
-                vol.Optional(CONF_DB_HOST,
-                             default=current.get(CONF_DB_HOST) or DEFAULT_DB_HOST): str,
-                vol.Optional(CONF_DB_PORT,
-                             default=int(current.get(CONF_DB_PORT) or DEFAULT_DB_PORT)):
+                # Suggested, not default: a cleared user must stay empty (= history off).
+                vol.Optional(CONF_DB_HOST, description={
+                    "suggested_value": current.get(CONF_DB_HOST) or DEFAULT_DB_HOST}): str,
+                vol.Optional(CONF_DB_PORT, description={
+                    "suggested_value": int(current.get(CONF_DB_PORT) or DEFAULT_DB_PORT)}):
                     NumberSelector(NumberSelectorConfig(min=1, max=65535,
                                                         mode=NumberSelectorMode.BOX)),
-                vol.Optional(CONF_DB_USERNAME, default=current.get(CONF_DB_USERNAME) or ""): str,
-                vol.Optional(CONF_DB_PASSWORD, default=""):
+                vol.Optional(CONF_DB_USERNAME, description={
+                    "suggested_value": current.get(CONF_DB_USERNAME) or ""}): str,
+                vol.Optional(CONF_DB_PASSWORD):
                     TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
-                vol.Optional(CONF_DB_NAME,
-                             default=current.get(CONF_DB_NAME) or DEFAULT_DB_NAME): str,
+                vol.Optional(CONF_DB_NAME, description={
+                    "suggested_value": current.get(CONF_DB_NAME) or DEFAULT_DB_NAME}): str,
                 vol.Optional(CONF_DB_RETENTION, default=int(self.options.get(
                     CONF_DB_RETENTION, history.DEFAULT_RETENTION_MONTHS))):
                     NumberSelector(NumberSelectorConfig(min=1, max=120,
