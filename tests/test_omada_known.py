@@ -13,13 +13,15 @@ from .test_stage_a import _hotel
 
 NOW = 1_800_000_000.0
 DAY = 86400
-STAFF, OLD_STAFF, GUEST, PRINTER = ("02-00-00-00-00-5A", "02-00-00-00-00-5B",
-                                    "02-00-00-00-00-5C", "00-11-22-00-00-5D")
+STAFF, OLD_STAFF, GUEST, PRINTER, SENSOR = (
+    "02-00-00-00-00-5A", "02-00-00-00-00-5B", "02-00-00-00-00-5C", "00-11-22-00-00-5D",
+    "00-11-22-00-00-5E")
 
 
-def _raw(mac, name, hours, last_seen_days_ago, *, wireless=True, **extra):
+def _raw(mac, name, hours, last_seen_days_ago, *, wireless=True, download=12_300_000_000,
+         upload=1_000_000_000, **extra):
     return {"mac": mac, "name": name, "wireless": wireless, "guest": False,
-            "duration": int(hours * 3600), "download": 12_300_000_000, "upload": 1_000_000_000,
+            "duration": int(hours * 3600), "download": download, "upload": upload,
             "lastSeen": int((NOW - last_seen_days_ago * DAY) * 1000), **extra}
 
 
@@ -48,6 +50,7 @@ def test_candidates():
     assert staff["omada_name"] == "Housekeeping-1" and staff["hours"] == 1500
     assert staff["download_gb"] == 12.3 and staff["random_mac"] is True
     assert staff["first_seen"] is None
+    assert (staff["suggest"], staff["reason"]) == ("employee", "1500 h on Wi-Fi")
     # Wi-Fi clients only (3), spread by total hours.
     assert result["clients"] == 3
     assert result["hours_spread"] == {"under_24h": 0, "1_to_5_days": 1, "5_to_21_days": 0,
@@ -55,6 +58,22 @@ def test_candidates():
     assert result["import_csv"].splitlines() == [
         "mac,name,category,note",
         f"{STAFF},Housekeeping-1,employee,Omada: 1500 h on Wi-Fi; last seen 2027-01-15"]
+
+
+def test_almost_no_traffic_is_fixed():
+    clients = [known_client_from(_raw(SENSOR, None, 800, 0, download=300_000_000, upload=0)),
+               known_client_from(_raw(STAFF, "Same name", 800, 0)),
+               known_client_from(_raw(GUEST, "Same name", 800, 0))]
+    found = {c["mac"]: c for c in omada_candidates(clients, known=(), now=NOW)["candidates"]}
+    assert found[SENSOR]["suggest"] == "fixed"  # 0.4 MB an hour
+    assert found[SENSOR]["reason"] == "800 h on Wi-Fi with almost no traffic"
+    # The same Omada name on two devices: two candidates, never merged.
+    assert found[STAFF]["suggest"] == found[GUEST]["suggest"] == "employee"
+    assert f"{SENSOR},,fixed,Omada: 800 h on Wi-Fi with almost no traffic;" in omada_candidates(
+        clients, known=(), now=NOW)["import_csv"]
+    rows = [r.split(",") for r in omada_candidates(clients, known=(), now=NOW)[
+        "import_csv"].splitlines()]
+    assert {len(r) for r in rows} == {4}
 
 
 def test_candidate_options():
