@@ -278,12 +278,16 @@ class ExelyApi:
                         "grant_type": "client_credentials", "client_id": client_id,
                         "client_secret": client_secret})
                     if resp.status in (400, 401, 403):
-                        raise ExelyAuthError(f"token request rejected (HTTP {resp.status})")
+                        raise ExelyAuthError(
+                            f"token request rejected: {await _describe(resp, client_secret)}")
                     if resp.status >= 400:
-                        raise ExelyApiError(f"token request failed (HTTP {resp.status})")
+                        raise ExelyApiError(
+                            f"token request failed: {await _describe(resp, client_secret)}")
                     body = await resp.json(content_type=None)
             except (aiohttp.ClientError, TimeoutError) as err:
-                raise ExelyApiError(f"token request failed: {err or type(err).__name__}") from err
+                raise ExelyApiError(f"token request failed: {_network(err)}") from err
+            except ValueError as err:
+                raise ExelyApiError("token response is not JSON") from err
             token = body.get("access_token") if isinstance(body, Mapping) else None
             if not token:
                 raise ExelyAuthError("no access_token in the token response")
@@ -319,17 +323,20 @@ class ExelyApi:
                         await _sleep(retry_after)
                         continue
                     if resp.status == 404:
-                        raise ExelyNotFound(f"not found: {path}")
+                        raise ExelyNotFound(f"{path}: {await _describe(resp)}")
                     if resp.status in (401, 403):
-                        raise ExelyAuthError(f"HTTP {resp.status}")
+                        raise ExelyAuthError(f"{path}: {await _describe(resp)}")
                     if resp.status >= 500:
-                        error = ExelyApiError(f"HTTP {resp.status}")
+                        error = ExelyApiError(f"{path}: {await _describe(resp)}")
                         continue
                     if resp.status >= 400:
-                        raise ExelyApiError(f"HTTP {resp.status}")
-                    return await resp.json(content_type=None)
+                        raise ExelyApiError(f"{path}: {await _describe(resp)}")
+                    try:
+                        return await resp.json(content_type=None)
+                    except ValueError as err:
+                        raise ExelyApiError(f"{path}: response is not JSON") from err
             except (aiohttp.ClientError, TimeoutError) as err:
-                error = ExelyApiError(f"request failed: {err or type(err).__name__}")
+                error = ExelyApiError(f"{path}: {_network(err)}")
         raise error or ExelyApiError("request failed")
 
     # -- rooms ------------------------------------------------------------- #
@@ -406,7 +413,13 @@ class ExelyApi:
 
     async def async_check(self, property_id: str) -> int:
         """Connection test for the options: token + room list. Returns the room count."""
-        return len(await self.async_rooms(property_id, refresh=True))
+        try:
+            count = len(await self.async_rooms(property_id, refresh=True))
+        except ExelyApiError as err:
+            self.last_error = f"{type(err).__name__}: {err}"
+            raise
+        self.last_error = None
+        return count
 
     def diagnostics(self) -> dict:
         rooms = self._rooms or {}
@@ -421,6 +434,23 @@ class ExelyApi:
                       for p, r in rooms.items()},
             "recent_lookups": list(self.recent),
         }
+
+
+async def _describe(resp: aiohttp.ClientResponse, secret: str | None = None) -> str:
+    """``HTTP 400: <start of the body>`` - Exely's error text says what is wrong."""
+    try:
+        text = " ".join((await resp.text()).split())[:300]
+    except (aiohttp.ClientError, UnicodeDecodeError, TimeoutError):
+        text = ""
+    if secret:
+        text = text.replace(secret, "***")
+    return f"HTTP {resp.status}: {text}" if text else f"HTTP {resp.status}"
+
+
+def _network(err: Exception) -> str:
+    """Network errors: the type tells timeout / DNS / TLS / refused apart."""
+    text = str(err).strip()
+    return f"{type(err).__name__}: {text}" if text else type(err).__name__
 
 
 def _retry_after(value: str | None) -> float:

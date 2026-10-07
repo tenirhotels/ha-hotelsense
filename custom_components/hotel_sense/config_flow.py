@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -69,6 +70,8 @@ from .exely_api import ExelyApiError, ExelyAuthError, ExelyNotFound
 from . import history
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
 from .storage import async_get_device_store
+
+LOGGER = logging.getLogger(__name__)
 
 CONF_MAC = "mac"
 CONF_NAME = "name"
@@ -479,6 +482,9 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_EXELY_PROPERTY_ID] = "exely_property_not_found"
                 except ExelyApiError:
                     errors["base"] = "exely_cannot_connect"
+                if errors:
+                    LOGGER.warning("Exely API check failed: %s",
+                                           self.controller.exely.api.last_error)
                 if not errors:
                     return await self._update_options()
                 self.hass.config_entries.async_update_entry(entry, data=old)
@@ -497,7 +503,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                              default=current.get(CONF_EXELY_PROPERTY_ID) or ""): str,
             }),
             description_placeholders={
-                "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no"},
+                "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no",
+                "last_error": self.controller.exely.api.last_error or "-"},
         )
 
     # ------------------------------------------------------------------ #
@@ -530,7 +537,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                 await self.hass.async_add_executor_job(history.check_connection, url)
             except Exception as err:  # noqa: BLE001 - shown as a form error
                 errors["base"] = f"db_{history.error_reason(err)}"
-                history.LOGGER.warning("History database check failed: %s",
+                LOGGER.warning("History database check failed: %s",
                                        str(err).splitlines()[0][:300])
             else:
                 self.hass.config_entries.async_update_entry(entry, data={**data, **db})

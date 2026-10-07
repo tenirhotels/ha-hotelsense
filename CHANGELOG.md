@@ -1,3 +1,6 @@
+# Hotel Sense 0.6.1
+- Exely API check: the reason of a failure (HTTP status and Exely's error text, or the network error) is shown in the form ("Last error") and logged; it used to be swallowed. A non-JSON answer is reported instead of failing the form
+
 # Hotel Sense 0.6.0
 - History database (Configure → History database): MariaDB add-on (or any MySQL / MariaDB) with host, port, user, password, database and retention (months, default 12); checked and tables created on save; password redacted
 - Recorded: Omada webhook client events (online / offline / roaming), presence sessions per room, room state changes, status changes with source and booking, Exely events

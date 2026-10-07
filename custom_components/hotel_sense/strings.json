@@ -190,7 +190,7 @@
       },
       "exely_api": {
         "title": "Exely Connect API",
-        "description": "Exely webhooks name the booking, not the room. With API access Hotel Sense looks the room up: one request per booking (cached for the stay) plus the room list once a day; never more than 30 requests an hour.\n\nIn Exely: Hotel settings → API connection → your connection: client_id and client_secret, with read access to reservations and rooms (PMS API). Property ID: your hotel's ID in Exely (the PropertyId of the webhook events).\n\nSaving checks the access with one room-list request. Leave client_id empty to switch the API off. Client secret saved: {secret_saved}.",
+        "description": "Exely webhooks name the booking, not the room. With API access Hotel Sense looks the room up: one request per booking (cached for the stay) plus the room list once a day; never more than 30 requests an hour.\n\nIn Exely: Hotel settings → API connection → your connection: client_id and client_secret, with read access to reservations and rooms (PMS API). Property ID: your hotel's ID in Exely (the PropertyId of the webhook events).\n\nSaving checks the access with one room-list request. Leave client_id empty to switch the API off. Client secret saved: {secret_saved}.\n\nLast error: {last_error}",
         "data": {
           "exely_client_id": "Client ID",
           "exely_client_secret": "Client secret",
@@ -224,7 +224,7 @@
       "exely_property_required": "Enter the property ID.",
       "exely_invalid_auth": "Exely rejected the client ID or secret.",
       "exely_property_not_found": "Exely knows no property with this ID (or the access does not cover it).",
-      "exely_cannot_connect": "Exely did not answer; try again later or see the Home Assistant log.",
+      "exely_cannot_connect": "Exely did not answer or reported an error; the details are under \"Last error\" below and in the Home Assistant log.",
       "db_auth": "The database rejected the user or password (or the user has no rights on this database).",
       "db_database": "No database with this name (create it in the MariaDB add-on configuration).",
       "db_connect": "The database server does not answer at this host and port (is the MariaDB add-on running?)."

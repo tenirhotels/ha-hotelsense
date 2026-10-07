@@ -448,3 +448,30 @@ async def test_options_require_secret_and_property(hass, make_entry, patch_api, 
         CONF_EXELY_CLIENT_ID: "client", CONF_EXELY_CLIENT_SECRET: "s"})
     assert result["errors"] == {CONF_EXELY_PROPERTY_ID: "exely_property_required"}
     assert aioclient_mock.call_count == 0
+
+
+async def test_errors_carry_exely_explanation(hass, aioclient_mock, no_sleep):
+    aioclient_mock.post(AUTH_URL, status=400, text='{"error": "invalid_client", "secret": "secret"}')
+    with pytest.raises(ExelyAuthError, match="HTTP 400: .*invalid_client") as err:
+        await _client(hass).async_reservation(PROP, BOOKING)
+    assert "secret" not in str(err.value)  # the client secret is never echoed
+
+
+async def test_non_json_answer_is_an_api_error(hass, aioclient_mock, no_sleep):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(ROOMS_URL, text="<html>maintenance</html>")
+    with pytest.raises(ExelyApiError, match="not JSON"):
+        await _client(hass).async_rooms(PROP)
+
+
+async def test_options_show_why_the_check_failed(hass, make_entry, patch_api, aioclient_mock,
+                                                 no_sleep, caplog):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(ROOMS_URL, status=400, text='{"message": "maxPageSize is invalid"}')
+    entry = await _exely_hotel(hass, make_entry)
+    result = await _api_step(hass, entry, {CONF_EXELY_CLIENT_ID: "client",
+                                           CONF_EXELY_CLIENT_SECRET: "secret",
+                                           CONF_EXELY_PROPERTY_ID: PROP})
+    assert result["errors"] == {"base": "exely_cannot_connect"}
+    assert "maxPageSize is invalid" in result["description_placeholders"]["last_error"]
+    assert "Exely API check failed" in caplog.text and "HTTP 400" in caplog.text
