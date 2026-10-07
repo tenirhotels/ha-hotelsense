@@ -1,3 +1,7 @@
+# Hotel Sense 0.6.2
+- Exely API: a failing room list (Exely answered HTTP 500) no longer blocks the setup - sign-in is what the check requires. Without the list, rooms are matched by their Exely `roomId` (room mapping, e.g. `4503599627373585 = Room 07`); unmatched ones show the `roomId` in the last event. The list is retried at most once an hour
+- The room list is requested with Exely's default page size (no `maxPageSize`)
+
 # Hotel Sense 0.6.1
 - Exely API check: the reason of a failure (HTTP status and Exely's error text, or the network error) is shown in the form ("Last error") and logged; it used to be swallowed. A non-JSON answer is reported instead of failing the form
 - Settings show what is already set up and whether it works: the main menu lists the state of the Omada webhook, Exely webhook, Exely API and history database; the Exely API page shows "Now: set up (client ID abcd…, property …); last check …" like the database page

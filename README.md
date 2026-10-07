@@ -121,7 +121,9 @@ Requests are kept to a minimum, Exely is only called when a webhook needs a room
   `429 retry-after` is honoured; at most 2 retries.
 
 Exely room names are matched to Areas like webhook room names (the room
-mapping applies). For a booking with several rooms, only the room stays Exely
+mapping applies). If Exely does not deliver the room list, rooms are matched
+by their Exely `roomId` instead: map `roomId = Area` in the room mapping (an
+unmatched event shows the `roomId`). For a booking with several rooms, only the room stays Exely
 shows with the event's status change. If the API fails, the event shows
 `api_error`. Only room stay IDs, statuses and dates are used; diagnostics show
 the response *structure* without values, plus request counters.
