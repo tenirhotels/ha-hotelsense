@@ -1,17 +1,18 @@
-"""Fake Omada controller built on the *real* API model classes.
+"""Fake Omada controller behind the *real* ``tplink-omada-client`` model classes.
 
-Only the HTTP layer is replaced: canned JSON goes through the real
-Clients / Devices / KnownClients parsing and polling code, so these tests
-exercise the same code paths as production.
+Only the controller is replaced: canned JSON (shaped like the Omada API)
+goes through the library's own device / client classes and then through
+Hotel Sense's ``omada_hub`` parsing, so tests exercise the production path.
 """
 from __future__ import annotations
 
 import time
 from typing import Any
 
-from custom_components.hotel_sense.api.clients import Clients
-from custom_components.hotel_sense.api.devices import Devices
-from custom_components.hotel_sense.api.known_clients import KnownClients
+from awesomeversion import AwesomeVersion
+from tplink_omada_client import OmadaSite
+from tplink_omada_client.clients import OmadaWiredClient, OmadaWirelessClient
+from tplink_omada_client.devices import OmadaListDevice
 
 SITE_ID = "site-key-1"
 SITE_NAME = "Test Site"
@@ -35,6 +36,7 @@ def ap_raw(mac: str, name: str, *, status_category: int = 1) -> dict[str, Any]:
         "firmwareVersion": "5.1.0",
         "status": 14,
         "statusCategory": status_category,
+        "uptimeLong": 3600,
         "needUpgrade": False,
         "clientNum": 2,
         "guestNum": 1,
@@ -76,53 +78,66 @@ def known_raw(mac: str, name: str, *, last_seen_ms: int | None = None,
     }
 
 
-class _NoDetailsDevices(Devices):
-    async def update_details(self, key: str, item) -> None:  # no per-AP detail calls
-        return None
-
-
 class FakeApi:
-    """Stand-in for api.controller.Controller."""
+    """The Omada controller: OmadaClient + its site client, data from ``responses``."""
 
     controller_id = "ctrl-1"
-    version = "5.2.2"
-    site = SITE_NAME
-    site_id = SITE_ID
+    version = "6.3.0.45"
+    name = "Omada OC200"
 
-    def __init__(self, aps, clients, known):
-        self.name = "Omada OC200"
-        self.ssids = {"Guest"}
-        self.rf_planning = None
+    def __init__(self, aps, clients, known=None):
         self.responses: dict[str, Any] = {}
         self.set_data(aps, clients, known)
-        self.devices = _NoDetailsDevices(self._request)
-        self.clients = Clients(self._request)
-        self.known_clients = KnownClients(self._request)
         # failure injection / call accounting
-        self.raise_on_status: list[Exception] = []
+        self.raise_on_status: list[Exception] = []  # raised by the next polls
         self.raise_on_login: list[Exception] = []
         self.login_calls = 0
-        self.status_calls = 0
+        self.poll_calls = 0
+        self.sites = [OmadaSite(SITE_NAME, SITE_ID)]
 
-    def set_data(self, aps, clients, known) -> None:
-        self.responses = {
-            "/devices": aps,
-            "/clients": {"data": clients},
-            "/insight/clients": {"data": known},
-        }
+    def set_data(self, aps, clients, known=None) -> None:
+        """``known`` (Omada's client history) is kept for old call sites; Hotel Sense
+        no longer reads it."""
+        self.responses = {"/devices": aps, "/clients": {"data": clients},
+                          "/insight/clients": {"data": known or []}}
 
-    async def _request(self, method, end_point, params=None, json=None):
-        return self.responses.get(end_point, {})
+    # -- OmadaClient --------------------------------------------------------- #
+    def __call__(self, url, username, password, websession=None, verify_ssl=True):
+        self.url, self.verify_ssl = url, verify_ssl
+        return self
 
-    async def update_status(self):
-        self.status_calls += 1
-        if self.raise_on_status:
-            raise self.raise_on_status.pop(0)
-
-    async def login(self):
+    async def login(self) -> str:
         self.login_calls += 1
         if self.raise_on_login:
             raise self.raise_on_login.pop(0)
+        return self.controller_id
+
+    async def get_controller_version(self) -> AwesomeVersion:
+        return AwesomeVersion(self.version)
+
+    async def get_controller_name(self) -> str:
+        return self.name
+
+    async def get_sites(self) -> list[OmadaSite]:
+        return list(self.sites)
+
+    async def get_site_client(self, site):
+        assert site.id == SITE_ID
+        return self
+
+    # -- OmadaSiteClient ----------------------------------------------------- #
+    async def get_devices(self) -> list[OmadaListDevice]:
+        self.poll_calls += 1
+        if self.raise_on_status:
+            raise self.raise_on_status.pop(0)
+        return [OmadaListDevice(dict(raw)) for raw in self.responses["/devices"]]
+
+    async def get_connected_clients(self):
+        for raw in self.responses["/clients"]["data"]:
+            if raw.get("wireless"):
+                yield OmadaWirelessClient(dict(raw))
+            else:
+                yield OmadaWiredClient(dict(raw))
 
 
 def default_api() -> FakeApi:

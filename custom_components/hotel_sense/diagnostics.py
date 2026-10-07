@@ -20,6 +20,14 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     return {
         "entry": async_redact_data(dict(entry.data), TO_REDACT),
         "options": dict(entry.options),
+        "omada": {
+            "controller_version": controller.hub.version,
+            "available": controller.available,
+            "access_points": len(controller.access_points),
+            "access_points_offline": sum(1 for ap in controller.access_points.values() if not ap.online),
+            "connected_clients": len(controller.clients),
+            "wireless_clients": sum(1 for c in controller.clients.values() if c.wireless),
+        },
         "exely_recent_events": list(controller.exely.recent),
         "rooms": {a: {"name": r.name, "status": r.status, "state": r.state}
                   for a, r in controller.presence.rooms.items()},

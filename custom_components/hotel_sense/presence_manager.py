@@ -17,7 +17,6 @@ from .const import (
     DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE, DOMAIN,
     EVENT_ROOM_STATE_CHANGED, STATUS_SOURCE_MANUAL, STATUS_SOURCE_RESTORED,
 )
-from .mac import parse_mac
 from .device_kind import resolve_kind
 from .device_list import CATEGORY_FIXED
 from .presence import AreaPresence, Observation, PresenceEngine, evaluate_room
@@ -109,16 +108,9 @@ class PresenceManager:
         return not _ROOM_NAME.match(name or "")
 
     def _observations(self) -> list[Observation]:
-        result = []
-        for mac, client in self.controller.api.clients.items.items():
-            if not client.wireless:
-                continue  # owner decision: Wi-Fi clients only
-            try:
-                ap_mac = parse_mac(client.ap_mac) if client.ap_mac else None
-                result.append(Observation(parse_mac(mac), ap_mac, client.rssi, client.ssid))
-            except ValueError:
-                continue
-        return result
+        return [Observation(mac, client.ap_mac, client.rssi, client.ssid)
+                for mac, client in self.controller.clients.items()
+                if client.wireless]  # owner decision: Wi-Fi clients only
 
     @callback
     def async_process(self) -> None:
@@ -214,12 +206,8 @@ class PresenceManager:
         return sorted(result, key=lambda d: d["name"])
 
     def _omada_raw(self, mac: str) -> dict | None:
-        api = self.controller.api
-        for collection in (api.clients, api.known_clients):
-            item = collection.items.get(mac)
-            if item is not None:
-                return getattr(item, "_raw", None)
-        return None
+        client = self.controller.client(mac)
+        return dict(client.raw) if client is not None else None
 
     def connection_info(self, mac: str) -> dict:
         """Access point, SSID and signal of the last observation of ``mac``.
@@ -230,10 +218,9 @@ class PresenceManager:
         track = self.engine.tracks.get(mac)
         if track is None:
             return {}
-        devices = self.controller.api.devices.items
-        ap = next((d for m, d in devices.items() if track.ap_mac and m.upper() == track.ap_mac), None)
+        ap = self.controller.access_points.get(track.ap_mac) if track.ap_mac else None
         return {
-            "connected": mac in self.controller.api.clients.items,
+            "connected": mac in self.controller.clients,
             "ap": ap.name if ap else track.ap_mac,
             "ssid": track.ssid,
             "rssi": track.rssi,
@@ -249,11 +236,6 @@ class PresenceManager:
     def client_name(self, mac: str) -> str:
         if (known := self.store.devices.get(mac)) and known.name:
             return known.name
-        api = self.controller.api
-        for collection in (api.known_clients, api.clients):
-            try:
-                if mac in collection and collection[mac].name:
-                    return collection[mac].name
-            except (KeyError, TypeError):
-                continue
+        if (client := self.controller.client(mac)) is not None and client.name:
+            return client.name
         return mac

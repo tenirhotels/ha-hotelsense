@@ -16,7 +16,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import mock_restore_cache
 
-from custom_components.hotel_sense.api.errors import RequestError
+from tplink_omada_client.exceptions import ConnectionFailed
 from custom_components.hotel_sense.const import (
     CONF_COMMON_AREAS, CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE, DOMAIN,
     EVENT_ROOM_STATE_CHANGED, STORAGE_KEY_DEVICES,
@@ -267,7 +267,7 @@ async def test_presence_options_are_applied(hass, make_entry, patch_api, freezer
 async def test_controller_outage_keeps_last_picture(hass, make_entry, patch_api, freezer):
     """ТЗ §22: no mass 'empty' when the controller is unreachable."""
     controller = await _hotel(hass, make_entry())
-    patch_api.raise_on_status = [RequestError("u", "down"), RequestError("u", "down")]
+    patch_api.raise_on_status = [ConnectionFailed("down")]
     freezer.tick(timedelta(minutes=30))
     await _poll(hass, controller)
     assert controller.available is False
@@ -478,14 +478,14 @@ async def test_misplaced_fixed_devices_double_check(hass, make_entry, patch_api)
 
 async def test_devices_show_access_point_ssid_and_signal(hass, make_entry, patch_api, freezer):
     controller = await _hotel(hass, make_entry())
-    on_wf07 = client_raw(GUEST_PHONE, "Guest-Phone", ap_mac=AP_WF07, ssid="TENIR7") | {"rssi": -48}
+    on_wf07 = client_raw(GUEST_PHONE, "Guest-Phone", ap_mac=AP_WF07, ssid="Guest-07") | {"rssi": -48}
     _set_clients(patch_api, [on_wf07, client_raw(SHARED_MAC, "wf07-as-client")])
     await _poll(hass, controller)            # roaming to WF07 starts
     freezer.tick(timedelta(seconds=31))      # past the 30 s roaming debounce
     await _poll(hass, controller)
     devices = {d["mac"]: d for d in hass.states.get("sensor.room_07_guest_devices").attributes["devices"]}
     phone = devices[GUEST_PHONE]
-    assert (phone["ap"], phone["ssid"], phone["rssi"], phone["connected"]) == ("WF07", "TENIR7", -48, True)
+    assert (phone["ap"], phone["ssid"], phone["rssi"], phone["connected"]) == ("WF07", "Guest-07", -48, True)
     assert phone["last_seen"].endswith("+00:00")
 
     # Gone from Wi-Fi: kept in the room for the timeout, shown as not connected
@@ -495,4 +495,4 @@ async def test_devices_show_access_point_ssid_and_signal(hass, make_entry, patch
     await _poll(hass, controller)
     phone = {d["mac"]: d for d in
              hass.states.get("sensor.room_07_guest_devices").attributes["devices"]}[GUEST_PHONE]
-    assert (phone["connected"], phone["ap"], phone["ssid"]) == (False, "WF07", "TENIR7")
+    assert (phone["connected"], phone["ap"], phone["ssid"]) == (False, "WF07", "Guest-07")

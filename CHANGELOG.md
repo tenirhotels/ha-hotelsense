@@ -1,3 +1,12 @@
+# Hotel Sense 0.3.0
+- Omada connection on `tplink-omada-client` (the library of Home Assistant's built-in TP-Link Omada integration, MIT); the forked ha-omada code is gone. Full Omada 6 support (client list via OpenAPI v2 from 6.2)
+- Kept with the same IDs: rooms, access point devices (Areas stay), AP *Uptime* / *Clients*, controller *Clients*, misplaced devices, Exely
+- New: AP *Status* (connectivity) replaces the AP device trackers
+- Removed (cleaned up on the first start): per-client trackers / sensors / switches, firmware update entities, other ha-omada sensors and buttons; their options are dropped
+- Reconfigure keeps the Exely webhook address and key (it used to regenerate them)
+- Diagnostics show the Omada connection (version, APs, clients)
+- MIT license; HACS license check on again
+
 # Hotel Sense 0.2.1
 - Room status select shows who set the status: `source` = manual / exely / restored (after a restart), `changed_at`, and `set_by` for a restored status
 - Controller outage: a failing re-login no longer aborts the poll; rooms are flagged `data_stale`
