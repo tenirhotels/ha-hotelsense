@@ -1,3 +1,6 @@
+# Hotel Sense 0.7.0
+- Service health entities (diagnostic, on the controller device), for notifications and a system-status card: *Omada controller* (connectivity), *Omada webhook last message* (timestamp, with received / rejected counts), *Exely API* (not set up / OK / error, with the last error) and *History database* (connectivity, with queued / written / last error; only when the database is set up)
+
 # Hotel Sense 0.6.4
 - Settings: cleared fields stay cleared. Exely API (client ID), history database (user) and the Exely room mapping were pre-filled as defaults, so Home Assistant put the old value back when a field was emptied - the API / history could not be switched off and the mapping not cleared. They are now suggested values
 

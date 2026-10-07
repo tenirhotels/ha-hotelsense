@@ -269,6 +269,12 @@
       },
       "ap_status": {
         "name": "Status"
+      },
+      "controller_online": {
+        "name": "Omada controller"
+      },
+      "history_database": {
+        "name": "History database"
       }
     },
     "sensor": {
@@ -311,6 +317,17 @@
       },
       "controller_clients": {
         "name": "Clients"
+      },
+      "omada_webhook_last_message": {
+        "name": "Omada webhook last message"
+      },
+      "exely_api": {
+        "name": "Exely API",
+        "state": {
+          "not_set_up": "Not set up",
+          "ok": "OK",
+          "error": "Error"
+        }
       }
     },
     "select": {

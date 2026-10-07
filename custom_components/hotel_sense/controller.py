@@ -194,8 +194,12 @@ class OmadaController:
         cid = self.controller_id
         if unique_id.startswith("room:"):
             return True
-        if unique_id in {f"clients-{cid}", f"exely_last_event-{cid}", f"misplaced_devices-{cid}"}:
+        if unique_id in {f"clients-{cid}", f"exely_last_event-{cid}", f"misplaced_devices-{cid}",
+                         f"controller_online-{cid}", f"omada_webhook_last_message-{cid}",
+                         f"exely_api-{cid}"}:
             return True
+        if unique_id == f"history_database-{cid}":
+            return self.history is not None
         parsed = parse_unique_id(unique_id)
         return (parsed is not None and parsed.namespace == NS_AP
                 and parsed.key in AP_ENTITY_KEYS.get(domain, ()))

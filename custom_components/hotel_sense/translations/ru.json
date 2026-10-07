@@ -269,6 +269,12 @@
       },
       "ap_status": {
         "name": "Статус"
+      },
+      "controller_online": {
+        "name": "Контроллер Omada"
+      },
+      "history_database": {
+        "name": "База истории"
       }
     },
     "sensor": {
@@ -311,6 +317,17 @@
       },
       "controller_clients": {
         "name": "Клиенты"
+      },
+      "omada_webhook_last_message": {
+        "name": "Вебхук Omada: последнее сообщение"
+      },
+      "exely_api": {
+        "name": "Exely API",
+        "state": {
+          "not_set_up": "Не настроен",
+          "ok": "Работает",
+          "error": "Ошибка"
+        }
       }
     },
     "select": {

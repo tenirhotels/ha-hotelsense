@@ -142,6 +142,18 @@ the response *structure* without values, plus request counters.
 
 Common areas (Admin House) get only presence and counts.
 
+### Service health (controller device, diagnostic)
+
+| Entity | Meaning |
+|---|---|
+| `binary_sensor.<controller>_omada_controller` | The Omada controller answers the polls (off = unreachable) |
+| `sensor.<controller>_omada_webhook_last_message` | Time of the last Omada webhook message; attributes `received`, `rejected` |
+| `sensor.<controller>_exely_api` | `not_set_up` / `ok` / `error`; attributes `last_error`, `rooms_error`, `last_check`, `requests_last_hour` |
+| `binary_sensor.<controller>_history_database` | History database connected (only when set up); attributes `queued`, `written`, `dropped`, `last_write`, `last_error` |
+
+Examples for automations: controller off for 5 minutes; no webhook message for
+an hour; Exely API `error`; database off or `queued` growing.
+
 **Connection.** Each device in the `devices` attribute also shows where it is
 connected: `ap` (access point name), `ssid`, `rssi` (dBm), `last_seen` and
 `connected` (false while a device that left is kept in the room for the
