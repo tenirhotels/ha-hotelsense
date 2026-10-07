@@ -19,6 +19,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
+    TextSelectorType,
 )
 
 import asyncio
@@ -35,6 +36,19 @@ from .const import (
     CONF_COMMON_AREAS,
     CONF_SLEEP_TIMEOUT,
     DEFAULT_SLEEP_TIMEOUT,
+    CONF_DB_HOST,
+    CONF_DB_NAME,
+    CONF_DB_PASSWORD,
+    CONF_DB_PORT,
+    CONF_DB_RETENTION,
+    CONF_DB_USERNAME,
+    DB_KEYS,
+    DEFAULT_DB_HOST,
+    DEFAULT_DB_NAME,
+    DEFAULT_DB_PORT,
+    CONF_EXELY_CLIENT_ID,
+    CONF_EXELY_CLIENT_SECRET,
+    CONF_EXELY_PROPERTY_ID,
     CONF_EXELY_NEW_KEY,
     CONF_EXELY_NEW_URL,
     CONF_EXELY_ROOM_MAP,
@@ -51,6 +65,8 @@ from .omada_hub import (
     SiteNotFound, UnsupportedControllerVersion,
 )
 from .device_kind import LISTABLE_KINDS
+from .exely_api import ExelyApiError, ExelyAuthError, ExelyNotFound
+from . import history
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
 from .storage import async_get_device_store
 
@@ -162,7 +178,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_menu(
             step_id="init",
-            menu_options=["device_tracker", "omada_webhook", "presence", "device_list", "exely"],
+            menu_options=["device_tracker", "omada_webhook", "presence", "device_list", "exely",
+                          "exely_api", "database"],
         )
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -427,3 +444,128 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_exely_rotated(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return await self.async_step_exely(user_input)
+
+    # ------------------------------------------------------------------ #
+    # Exely Connect API (room of a booking)
+    # ------------------------------------------------------------------ #
+    async def async_step_exely_api(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """client_id / client_secret / property; saving checks them with one room-list call."""
+        entry = self.config_entry
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            client_id = (user_input.get(CONF_EXELY_CLIENT_ID) or "").strip()
+            secret = (user_input.get(CONF_EXELY_CLIENT_SECRET) or "").strip()
+            prop = (user_input.get(CONF_EXELY_PROPERTY_ID) or "").strip()
+            old = dict(entry.data)
+            data = {k: v for k, v in old.items() if k not in (
+                CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_EXELY_PROPERTY_ID)}
+            if not client_id:  # cleared: Exely API off
+                self.hass.config_entries.async_update_entry(entry, data=data)
+                return await self._update_options()
+            secret = secret or old.get(CONF_EXELY_CLIENT_SECRET, "")
+            if not secret:
+                errors[CONF_EXELY_CLIENT_SECRET] = "exely_secret_required"
+            elif not prop:
+                errors[CONF_EXELY_PROPERTY_ID] = "exely_property_required"
+            else:
+                self.hass.config_entries.async_update_entry(entry, data={
+                    **data, CONF_EXELY_CLIENT_ID: client_id, CONF_EXELY_CLIENT_SECRET: secret,
+                    CONF_EXELY_PROPERTY_ID: prop})
+                try:
+                    await self.controller.exely.api.async_check(prop)
+                except ExelyAuthError:
+                    errors["base"] = "exely_invalid_auth"
+                except ExelyNotFound:
+                    errors[CONF_EXELY_PROPERTY_ID] = "exely_property_not_found"
+                except ExelyApiError:
+                    errors["base"] = "exely_cannot_connect"
+                if not errors:
+                    return await self._update_options()
+                self.hass.config_entries.async_update_entry(entry, data=old)
+
+        current = user_input or entry.data
+        return self.async_show_form(
+            step_id="exely_api",
+            errors=errors,
+            data_schema=vol.Schema({
+                vol.Optional(CONF_EXELY_CLIENT_ID,
+                             default=current.get(CONF_EXELY_CLIENT_ID) or ""): str,
+                # Never shown again: empty keeps the saved secret.
+                vol.Optional(CONF_EXELY_CLIENT_SECRET, default=""):
+                    TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                vol.Optional(CONF_EXELY_PROPERTY_ID,
+                             default=current.get(CONF_EXELY_PROPERTY_ID) or ""): str,
+            }),
+            description_placeholders={
+                "secret_saved": "yes" if entry.data.get(CONF_EXELY_CLIENT_SECRET) else "no"},
+        )
+
+    # ------------------------------------------------------------------ #
+    # History database (MariaDB add-on)
+    # ------------------------------------------------------------------ #
+    async def async_step_database(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Connection (checked on save, tables created) and retention."""
+        entry = self.config_entry
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            username = (user_input.get(CONF_DB_USERNAME) or "").strip()
+            self.options[CONF_DB_RETENTION] = int(user_input.get(
+                CONF_DB_RETENTION, history.DEFAULT_RETENTION_MONTHS))
+            data = {k: v for k, v in entry.data.items() if k not in DB_KEYS}
+            if not username:  # cleared: history off
+                self.hass.config_entries.async_update_entry(entry, data=data)
+                return await self._update_options()
+            db = {
+                CONF_DB_HOST: (user_input.get(CONF_DB_HOST) or "").strip() or DEFAULT_DB_HOST,
+                CONF_DB_PORT: int(user_input.get(CONF_DB_PORT) or DEFAULT_DB_PORT),
+                CONF_DB_USERNAME: username,
+                # Never shown again: empty keeps the saved password.
+                CONF_DB_PASSWORD: user_input.get(CONF_DB_PASSWORD)
+                or entry.data.get(CONF_DB_PASSWORD, ""),
+                CONF_DB_NAME: (user_input.get(CONF_DB_NAME) or "").strip() or DEFAULT_DB_NAME,
+            }
+            url = history.build_url(db[CONF_DB_HOST], db[CONF_DB_PORT], username,
+                                    db[CONF_DB_PASSWORD], db[CONF_DB_NAME])
+            try:
+                await self.hass.async_add_executor_job(history.check_connection, url)
+            except Exception as err:  # noqa: BLE001 - shown as a form error
+                errors["base"] = f"db_{history.error_reason(err)}"
+                history.LOGGER.warning("History database check failed: %s",
+                                       str(err).splitlines()[0][:300])
+            else:
+                self.hass.config_entries.async_update_entry(entry, data={**data, **db})
+                return await self._update_options()
+
+        current = {**entry.data, **(user_input or {})}
+        return self.async_show_form(
+            step_id="database",
+            errors=errors,
+            data_schema=vol.Schema({
+                vol.Optional(CONF_DB_HOST,
+                             default=current.get(CONF_DB_HOST) or DEFAULT_DB_HOST): str,
+                vol.Optional(CONF_DB_PORT,
+                             default=int(current.get(CONF_DB_PORT) or DEFAULT_DB_PORT)):
+                    NumberSelector(NumberSelectorConfig(min=1, max=65535,
+                                                        mode=NumberSelectorMode.BOX)),
+                vol.Optional(CONF_DB_USERNAME, default=current.get(CONF_DB_USERNAME) or ""): str,
+                vol.Optional(CONF_DB_PASSWORD, default=""):
+                    TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                vol.Optional(CONF_DB_NAME,
+                             default=current.get(CONF_DB_NAME) or DEFAULT_DB_NAME): str,
+                vol.Optional(CONF_DB_RETENTION, default=int(self.options.get(
+                    CONF_DB_RETENTION, history.DEFAULT_RETENTION_MONTHS))):
+                    NumberSelector(NumberSelectorConfig(min=1, max=120,
+                                                        mode=NumberSelectorMode.BOX,
+                                                        unit_of_measurement="months")),
+            }),
+            description_placeholders={
+                "status": self._database_status(),
+                "password_saved": "yes" if entry.data.get(CONF_DB_PASSWORD) else "no"},
+        )
+
+    def _database_status(self) -> str:
+        writer = self.controller.history
+        if writer is None:
+            return "off"
+        state = "connected" if writer.connected else (writer.last_error or "not connected yet")
+        return f"{state}; rows written: {writer.written}, queued: {writer.queued}"

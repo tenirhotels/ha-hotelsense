@@ -1,3 +1,16 @@
+# Hotel Sense 0.6.0
+- History database (Configure → History database): MariaDB add-on (or any MySQL / MariaDB) with host, port, user, password, database and retention (months, default 12); checked and tables created on save; password redacted
+- Recorded: Omada webhook client events (online / offline / roaming), presence sessions per room, room state changes, status changes with source and booking, Exely events
+- Batched, non-blocking writes; rows wait in memory while the database is down; nightly purge of rows older than the retention
+- Only MACs, SSIDs, rooms and booking numbers are stored: no client names or IP addresses
+
+# Hotel Sense 0.5.0
+- Exely API (Configure → Exely API): webhook events that name only the booking get their room from the Exely Connect API (reservation → room stay → room list → Area); credentials are checked on save and redacted in diagnostics
+- Few requests: reservation cached for the stay, room list on disk (daily refresh), token per 14 min, own limit 1 request/s and 30/h, `retry-after` honoured, 2 retries at most; repeated deliveries (same `eventId`) ignored
+- Bookings with several rooms: only the room stays whose status matches the event
+- Webhook payloads with several events are handled event by event; new result `api_error`
+- Diagnostics: API counters, last error, cached room list and the shape (no values) of recent reservation responses
+
 # Hotel Sense 0.4.0
 - Sleeping devices: optional separate timeout for devices last seen in Wi-Fi power save (off by default); `power_save` in the room device lists, count in diagnostics
 - Omada webhook (Configure → Omada webhook): authenticated controller messages trigger an immediate, debounced poll; recent messages in diagnostics; secret can be regenerated

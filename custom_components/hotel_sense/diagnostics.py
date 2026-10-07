@@ -11,11 +11,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID, CONF_OMADA_WEBHOOK_ID, CONF_OMADA_WEBHOOK_SECRET,
-    DOMAIN,
+    CONF_DB_PASSWORD, CONF_DB_USERNAME, CONF_EXELY_API_KEY, CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_EXELY_WEBHOOK_ID,
+    CONF_OMADA_WEBHOOK_ID, CONF_OMADA_WEBHOOK_SECRET, DOMAIN,
 )
 
 TO_REDACT = {CONF_PASSWORD, CONF_USERNAME, CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID,
+             CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_DB_USERNAME, CONF_DB_PASSWORD,
              CONF_OMADA_WEBHOOK_ID, CONF_OMADA_WEBHOOK_SECRET}
 
 
@@ -35,6 +36,9 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         },
         "omada_webhook": controller.omada_webhook.diagnostics(),
         "exely_recent_events": list(controller.exely.recent),
+        "exely_duplicates": controller.exely.duplicates,
+        "exely_api": controller.exely.api.diagnostics(),
+        "history": controller.history.diagnostics() if controller.history else None,
         "rooms": {a: {"name": r.name, "status": r.status, "state": r.state}
                   for a, r in controller.presence.rooms.items()},
     }
