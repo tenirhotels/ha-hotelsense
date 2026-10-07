@@ -14,7 +14,8 @@ from homeassistant.util import dt as dt_util
 from .areas import resolve_ap_areas, resolve_area
 from .const import (
     CONF_COMMON_AREAS, CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE,
-    DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE, DOMAIN,
+    CONF_SLEEP_TIMEOUT, DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE,
+    DEFAULT_SLEEP_TIMEOUT, DOMAIN,
     EVENT_ROOM_STATE_CHANGED, STATUS_SOURCE_MANUAL, STATUS_SOURCE_RESTORED,
 )
 from .device_kind import resolve_kind
@@ -71,10 +72,12 @@ class PresenceManager:
     def load_options(self) -> None:
         options = self.entry.options
         min_rssi = int(options.get(CONF_MIN_RSSI, DEFAULT_MIN_RSSI) or 0)
+        sleep = float(options.get(CONF_SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT) or 0)
         self.engine.configure(
             timeout=float(options.get(CONF_PRESENCE_TIMEOUT, DEFAULT_PRESENCE_TIMEOUT)) * 60,
             debounce=float(options.get(CONF_ROAMING_DEBOUNCE, DEFAULT_ROAMING_DEBOUNCE)),
             min_rssi=min_rssi if min_rssi < 0 else None,
+            sleep_timeout=sleep * 60 if sleep > 0 else None,
         )
         common = options.get(CONF_COMMON_AREAS)
         self.common_areas = set(common) if common is not None else None
@@ -108,7 +111,7 @@ class PresenceManager:
         return not _ROOM_NAME.match(name or "")
 
     def _observations(self) -> list[Observation]:
-        return [Observation(mac, client.ap_mac, client.rssi, client.ssid)
+        return [Observation(mac, client.ap_mac, client.rssi, client.ssid, client.power_save)
                 for mac, client in self.controller.clients.items()
                 if client.wireless]  # owner decision: Wi-Fi clients only
 
@@ -224,6 +227,7 @@ class PresenceManager:
             "ap": ap.name if ap else track.ap_mac,
             "ssid": track.ssid,
             "rssi": track.rssi,
+            "power_save": track.power_save,
             "last_seen": dt_util.utc_from_timestamp(track.last_seen).isoformat(),
         }
 

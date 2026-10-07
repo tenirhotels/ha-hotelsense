@@ -154,6 +154,36 @@ Every change of a room state also fires the `hotel_sense_room_state_changed` eve
 
 ---
 
+### Sleeping devices (Wi-Fi power save)
+
+Omada reports whether a phone is in Wi-Fi power save (screen off). Configure →
+Room presence → *Timeout for sleeping devices*: a device whose last report was
+in power save is kept in its room this long instead of the disconnect timeout
+(0 = off, the default). Each device in the room lists shows `power_save`;
+diagnostics count the devices in power save. Observe the real data before
+relying on it: a guest leaving with the phone in the pocket is "asleep" too.
+
+### Omada webhook: instant updates
+
+Configure → *Omada webhook* shows a URL and a *Shard Secret*. In the Omada
+controller: Settings → Webhook → add them, and send the client events
+(connected / disconnected / roaming) and alerts to it. Any authenticated
+message makes Hotel Sense poll the controller at once (debounced), so rooms
+update within seconds. The webhook only accepts local-network requests;
+recent messages (without the secret) are in the diagnostics.
+
+### Actions (Developer tools → Actions)
+
+| Action | What it does |
+|---|---|
+| `hotel_sense.reconnect_client` | Disconnects a Wi-Fi device (`mac`) so it reconnects: is it really there? |
+| `hotel_sense.block_client` / `unblock_client` | Blocks / unblocks a device (`mac`) in Omada |
+| `hotel_sense.ap_ssids` | Which SSIDs are enabled on each access point (or on `access_point`) |
+| `hotel_sense.set_ap_ssid` | Turns an SSID on/off on an access point: `access_point` = MAC, AP name or a room (all its APs), `ssid`, `enabled` |
+
+Nothing calls them automatically yet; they are the building blocks for later
+automations (e.g. room SSID off at check-out).
+
 ## Installation
 
 HACS → ⋮ → Custom repositories → `https://github.com/tenirhotels/ha-hotelsense`

@@ -59,6 +59,7 @@ class OmadaController:
         self._on_close: list[CALLBACK_TYPE] = []
         self.presence = None  # PresenceManager, set up in __init__.async_setup_entry
         self.exely = None  # ExelyReceiver, set up in __init__.async_setup_entry
+        self.omada_webhook = None  # OmadaWebhook, set up in __init__.async_setup_entry
         self.option_scan_interval = DEFAULT_SCAN_INTERVAL
         self.load_config_entry_options()
 

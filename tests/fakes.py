@@ -10,7 +10,6 @@ import time
 from typing import Any
 
 from awesomeversion import AwesomeVersion
-from tplink_omada_client import OmadaSite
 from tplink_omada_client.clients import OmadaWiredClient, OmadaWirelessClient
 from tplink_omada_client.devices import OmadaListDevice
 
@@ -79,7 +78,8 @@ def known_raw(mac: str, name: str, *, last_seen_ms: int | None = None,
 
 
 class FakeApi:
-    """The Omada controller: OmadaClient + its site client, data from ``responses``."""
+    """The Omada controller: the library's OmadaApiConnection and the site client
+    on top of it (``OmadaSiteClient(site_id, api)`` returns this object too)."""
 
     controller_id = "ctrl-1"
     version = "6.3.0.45"
@@ -91,9 +91,18 @@ class FakeApi:
         # failure injection / call accounting
         self.raise_on_status: list[Exception] = []  # raised by the next polls
         self.raise_on_login: list[Exception] = []
+        self.raise_on_command: list[Exception] = []
         self.login_calls = 0
         self.poll_calls = 0
-        self.sites = [OmadaSite(SITE_NAME, SITE_ID)]
+        self.sites = [{"name": SITE_NAME, "key": SITE_ID}]
+        self.commands: list[tuple[str, str]] = []  # (command, mac)
+        self.patches: list[tuple[str, dict]] = []  # (url, json)
+        # Per access point: Omada's SSID overrides (one entry per site SSID).
+        self.ap_details: dict[str, dict] = {
+            raw["mac"]: {"wlanId": "wlan-1", "ssidOverrides": [
+                {"index": 0, "globalSsid": "Guest", "ssidEnable": True, "supportVlan": False},
+                {"index": 1, "globalSsid": "Staff", "ssidEnable": True, "supportVlan": False},
+            ]} for raw in aps}
 
     def set_data(self, aps, clients, known=None) -> None:
         """``known`` (Omada's client history) is kept for old call sites; Hotel Sense
@@ -101,7 +110,7 @@ class FakeApi:
         self.responses = {"/devices": aps, "/clients": {"data": clients},
                           "/insight/clients": {"data": known or []}}
 
-    # -- OmadaClient --------------------------------------------------------- #
+    # -- OmadaApiConnection -------------------------------------------------- #
     def __call__(self, url, username, password, websession=None, verify_ssl=True):
         self.url, self.verify_ssl = url, verify_ssl
         return self
@@ -115,15 +124,28 @@ class FakeApi:
     async def get_controller_version(self) -> AwesomeVersion:
         return AwesomeVersion(self.version)
 
-    async def get_controller_name(self) -> str:
-        return self.name
+    def format_url(self, end_point: str, site: str | None = None) -> str:
+        if site:
+            end_point = f"sites/{site}/{end_point}"
+        return f"{self.url}/{self.controller_id}/api/v2/{end_point}"
 
-    async def get_sites(self) -> list[OmadaSite]:
-        return list(self.sites)
-
-    async def get_site_client(self, site):
-        assert site.id == SITE_ID
-        return self
+    async def request(self, method, url, params=None, json=None, data=None):
+        path = url.split("/api/v2/", 1)[1]
+        if path == "maintenance/uiInterface":
+            return {"controllerName": self.name}
+        if path == "users/current":
+            return {"privilege": {"sites": list(self.sites)}}
+        if path.startswith(f"sites/{SITE_ID}/eaps/"):
+            mac = path.rsplit("/", 1)[1]
+            if self.raise_on_command:
+                raise self.raise_on_command.pop(0)
+            if method.lower() == "get":
+                return {"mac": mac, **{k: [dict(o) for o in v] if isinstance(v, list) else v
+                                       for k, v in self.ap_details[mac].items()}}
+            self.patches.append((path, json))
+            self.ap_details[mac].update(json)
+            return {}
+        raise AssertionError(f"unexpected request {method} {path}")
 
     # -- OmadaSiteClient ----------------------------------------------------- #
     async def get_devices(self) -> list[OmadaListDevice]:
@@ -138,6 +160,20 @@ class FakeApi:
                 yield OmadaWirelessClient(dict(raw))
             else:
                 yield OmadaWiredClient(dict(raw))
+
+    async def _command(self, name: str, mac: str) -> None:
+        if self.raise_on_command:
+            raise self.raise_on_command.pop(0)
+        self.commands.append((name, mac))
+
+    async def reconnect_client(self, mac: str) -> None:
+        await self._command("reconnect", mac)
+
+    async def block_client(self, mac: str) -> None:
+        await self._command("block", mac)
+
+    async def unblock_client(self, mac: str) -> None:
+        await self._command("unblock", mac)
 
 
 def default_api() -> FakeApi:

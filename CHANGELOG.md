@@ -1,3 +1,9 @@
+# Hotel Sense 0.4.0
+- Sleeping devices: optional separate timeout for devices last seen in Wi-Fi power save (off by default); `power_save` in the room device lists, count in diagnostics
+- Omada webhook (Configure → Omada webhook): authenticated controller messages trigger an immediate, debounced poll; recent messages in diagnostics; secret can be regenerated
+- Actions: `reconnect_client`, `block_client`, `unblock_client` (by MAC); `ap_ssids` and `set_ap_ssid` (SSID on/off per access point or for all access points of a room)
+- The Omada connection uses the library's public connection and site client (also for the SSID endpoint)
+
 # Hotel Sense 0.3.1
 - Options of the removed ha-omada features are deleted automatically on startup
 - Reconfigure: the reload is left to the entry's update listener (connection settings changed), as Home Assistant requires from 2026.12 (it logged a deprecation warning)

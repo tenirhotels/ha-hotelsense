@@ -9,6 +9,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN, LEGACY_OPTIONS, PLATFORMS
 from .controller import OmadaController
 from .exely_webhook import ExelyReceiver, async_ensure_secrets
+from .omada_webhook import OmadaWebhook, async_ensure_omada_secrets
 from .presence_manager import PresenceManager
 from .services import async_register_services
 from .storage import async_get_device_store
@@ -29,10 +30,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             k: v for k, v in entry.options.items() if k not in LEGACY_OPTIONS})
     # Exely secrets first: the controller's update listener reacts to entry updates.
     async_ensure_secrets(hass, entry)
+    async_ensure_omada_secrets(hass, entry)
     controller = OmadaController(hass, entry)
     await controller.async_setup()
     controller.presence = PresenceManager(hass, entry, controller, await async_get_device_store(hass))
     controller.exely = ExelyReceiver(hass, entry, controller.presence)
+    controller.omada_webhook = OmadaWebhook(hass, entry, controller)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = controller
     controller.async_cleanup_registry()
 
@@ -41,6 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Access point devices exist now, so AP -> Area (rooms) can be resolved.
     controller.presence.async_start()
     controller.exely.async_start()
+    controller.omada_webhook.async_start()
     return True
 
 

@@ -137,3 +137,33 @@ def _p(guest=0, employee=0, fixed=0) -> AreaPresence:
 ])
 def test_violation_rules(status, presence, expected):
     assert evaluate_room(status, presence) == expected
+
+
+# --------------------------------------------------------------------------- #
+# Sleeping devices (Wi-Fi power save)
+# --------------------------------------------------------------------------- #
+def test_sleep_timeout_applies_to_devices_last_seen_in_power_save():
+    e = PresenceEngine(timeout=120, sleep_timeout=600)
+    awake, asleep = "00-11-22-33-44-02", "00-11-22-33-44-03"
+    e.update(0, [Observation(awake, AP1, power_save=False),
+                 Observation(asleep, AP1, power_save=True)], AREAS)
+    e.update(120, [], AREAS)
+    assert where(e, awake) is None          # normal timeout
+    assert where(e, asleep) == "room_01"    # still asleep in the room
+    e.update(600, [], AREAS)
+    assert where(e, asleep) is None
+
+
+def test_last_observation_decides_power_save():
+    e = PresenceEngine(timeout=120, sleep_timeout=600)
+    e.update(0, [Observation(PHONE, AP1, power_save=True)], AREAS)
+    e.update(10, [Observation(PHONE, AP1, power_save=False)], AREAS)  # woke up, then left
+    e.update(130, [], AREAS)
+    assert where(e) is None
+
+
+def test_sleep_timeout_off_by_default():
+    e = PresenceEngine(timeout=120)
+    e.update(0, [Observation(PHONE, AP1, power_save=True)], AREAS)
+    e.update(120, [], AREAS)
+    assert where(e) is None

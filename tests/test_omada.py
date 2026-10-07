@@ -248,7 +248,8 @@ async def test_diagnostics_show_the_omada_connection(hass, make_entry, patch_api
     diag = await async_get_config_entry_diagnostics(hass, entry)
     assert diag["omada"] == {"controller_version": "6.3.0.45", "available": True,
                              "access_points": 2, "access_points_offline": 0,
-                             "connected_clients": 3, "wireless_clients": 2}
+                             "connected_clients": 3, "wireless_clients": 2,
+                             "power_save_clients": 0}
     assert diag["entry"][CONF_PASSWORD] == "**REDACTED**"
 
 
@@ -353,3 +354,36 @@ async def test_legacy_options_are_removed_on_startup(hass, make_entry, patch_api
     assert entry.state is ConfigEntryState.LOADED
     assert hass.data[DOMAIN][entry.entry_id] is controller  # not reloaded
     assert controller.option_scan_interval == 15
+
+
+async def test_sleep_timeout_option_and_power_save_attribute(hass, make_entry, patch_api, freezer):
+    from custom_components.hotel_sense.const import CONF_PRESENCE_TIMEOUT, CONF_SLEEP_TIMEOUT
+
+    controller = await _hotel(hass, make_entry({CONF_PRESENCE_TIMEOUT: 2, CONF_SLEEP_TIMEOUT: 10}))
+    assert (controller.presence.engine.timeout, controller.presence.engine.sleep_timeout) == (120, 600)
+    clients = patch_api.responses["/clients"]["data"]
+    for c in clients:
+        if c["mac"] == GUEST_PHONE:
+            c["powerSave"] = True
+    await _poll(hass, controller)
+    devices = hass.states.get("sensor.room_06_guest_devices").attributes["devices"]
+    assert next(d for d in devices if d["mac"] == GUEST_PHONE)["power_save"] is True
+
+    patch_api.responses["/clients"]["data"] = [c for c in clients if c["mac"] != GUEST_PHONE]
+    freezer.tick(timedelta(minutes=3))
+    await _poll(hass, controller)
+    macs = {d["mac"] for d in hass.states.get("sensor.room_06_guest_devices").attributes["devices"]}
+    assert GUEST_PHONE in macs  # asleep: kept beyond the 2-minute timeout
+    freezer.tick(timedelta(minutes=8))
+    await _poll(hass, controller)
+    macs = {d["mac"] for d in hass.states.get("sensor.room_06_guest_devices").attributes["devices"]}
+    assert GUEST_PHONE not in macs
+
+
+async def test_options_presence_step_offers_sleep_timeout(hass, make_entry, patch_api):
+    from custom_components.hotel_sense.const import CONF_SLEEP_TIMEOUT
+
+    entry = make_entry()
+    await _hotel(hass, entry)
+    result = await _options_menu(hass, entry, "presence")
+    assert CONF_SLEEP_TIMEOUT in {str(k) for k in result["data_schema"].schema}

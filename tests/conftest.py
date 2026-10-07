@@ -38,6 +38,8 @@ def make_entry():
 
 @pytest.fixture
 def patch_api(fake_api):
-    """The library's OmadaClient replaced by the fake controller."""
-    with patch("custom_components.hotel_sense.omada_hub.OmadaClient", new=fake_api):
+    """The library's connection and site client replaced by the fake controller."""
+    with (patch("custom_components.hotel_sense.omada_hub.OmadaApiConnection", new=fake_api),
+          patch("custom_components.hotel_sense.omada_hub.OmadaSiteClient",
+                new=lambda site_id, api: api)):
         yield fake_api

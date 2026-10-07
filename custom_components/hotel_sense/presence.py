@@ -9,7 +9,9 @@ Rules (owner decisions, see README "Stage A"):
 
 * Only Wi-Fi clients count. Location source is the AP the client is on.
 * A client that disappears stays in its last room for ``timeout`` seconds
-  (default 5 min) - phones sleep and drop off Wi-Fi briefly.
+  (default 5 min) - phones sleep and drop off Wi-Fi briefly. A client whose
+  last observation was in Wi-Fi power save (Omada ``powerSave``) can be given
+  its own ``sleep_timeout`` (``None`` = same as ``timeout``).
 * Roaming to an AP in another area is accepted only once the client has stayed
   there for ``debounce`` seconds (default 30 s), so flapping between
   neighbouring APs does not move it back and forth.
@@ -57,6 +59,7 @@ class Observation:
     ap_mac: str | None
     rssi: int | None = None
     ssid: str | None = None
+    power_save: bool | None = None
 
 
 @dataclass
@@ -67,6 +70,7 @@ class Track:
     ap_mac: str | None = None
     rssi: int | None = None
     ssid: str | None = None
+    power_save: bool | None = None
     pending_area_id: str | None = None
     pending_since: float | None = None
 
@@ -114,16 +118,26 @@ def evaluate_room(status: str | None, presence: AreaPresence) -> str:
 
 class PresenceEngine:
     def __init__(self, *, timeout: float = DEFAULT_TIMEOUT,
-                 debounce: float = DEFAULT_DEBOUNCE, min_rssi: int | None = None) -> None:
+                 debounce: float = DEFAULT_DEBOUNCE, min_rssi: int | None = None,
+                 sleep_timeout: float | None = None) -> None:
         self.timeout = timeout
         self.debounce = debounce
         self.min_rssi = min_rssi
+        self.sleep_timeout = sleep_timeout
         self.tracks: dict[str, Track] = {}
 
-    def configure(self, *, timeout: float, debounce: float, min_rssi: int | None) -> None:
+    def configure(self, *, timeout: float, debounce: float, min_rssi: int | None,
+                  sleep_timeout: float | None = None) -> None:
         self.timeout = timeout
         self.debounce = debounce
         self.min_rssi = min_rssi
+        self.sleep_timeout = sleep_timeout
+
+    def timeout_for(self, track: Track) -> float:
+        """How long a device that disappeared is kept in its room."""
+        if track.power_save and self.sleep_timeout is not None:
+            return self.sleep_timeout
+        return self.timeout
 
     def _weak(self, rssi: int | None) -> bool:
         return self.min_rssi is not None and rssi is not None and rssi < self.min_rssi
@@ -139,13 +153,15 @@ class PresenceEngine:
             track = self.tracks.get(obs.mac)
 
             if track is None:
-                self.tracks[obs.mac] = Track(obs.mac, candidate, now, obs.ap_mac, obs.rssi, obs.ssid)
+                self.tracks[obs.mac] = Track(obs.mac, candidate, now, obs.ap_mac, obs.rssi,
+                                             obs.ssid, obs.power_save)
                 continue
 
             track.last_seen = now
             track.ap_mac = obs.ap_mac
             track.rssi = obs.rssi
             track.ssid = obs.ssid
+            track.power_save = obs.power_save
 
             if weak or candidate == track.area_id:
                 # A weak signal never moves a device; a matching one cancels roaming.
@@ -163,7 +179,7 @@ class PresenceEngine:
                 track.pending_area_id = track.pending_since = None
 
         for mac in [m for m, t in self.tracks.items()
-                    if m not in seen and now - t.last_seen >= self.timeout]:
+                    if m not in seen and now - t.last_seen >= self.timeout_for(t)]:
             del self.tracks[mac]
 
     def presence_by_area(self, category_of: Callable[[str], str | None]) -> dict[str, AreaPresence]:

@@ -154,3 +154,24 @@ def assign_ap_areas(hass: HomeAssistant, controller, table: Mapping[str, str],
         devices.async_update_device(device.id, area_id=area.id)
         result["assigned"].append({"mac": mac, "ap": aps[mac], "area": area.name})
     return result
+
+
+def find_access_points(hass: HomeAssistant, controller, value: str) -> list[str]:
+    """Access point MACs for a MAC, an AP name or an Area (id or name).
+
+    An Area gives every access point placed in it (usually one per room).
+    """
+    value = (value or "").strip()
+    aps = access_point_macs(controller)
+    try:
+        if (mac := parse_mac(value)) in aps:
+            return [mac]
+    except ValueError:
+        pass
+    by_name = [mac for mac, name in aps.items() if name and name.lower() == value.lower()]
+    if by_name:
+        return by_name
+    if (area := resolve_area(hass, value)) is not None:
+        return sorted(mac for mac, area_id in resolve_ap_areas(hass, controller).items()
+                      if area_id == area.id)
+    return []
