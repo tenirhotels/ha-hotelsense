@@ -81,6 +81,8 @@ CONF_OWNER = "owner"
 CONF_NOTE = "note"
 CONF_ROOM = "room"
 CONF_DEVICE_TYPE = "device_type"
+CONF_IDENTITY = "identity"
+NEW_DEVICE = "new"  # identity choice: a device of its own (ID given automatically)
 CONF_DEVICES = "devices"
 CONF_CSV = "csv"
 CONF_REPLACE = "replace"
@@ -336,9 +338,14 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return await self._update_options()
 
-    @staticmethod
-    def _device_schema(device: KnownDevice | None = None) -> vol.Schema:
+    def _device_schema(self, devices, device: KnownDevice | None = None) -> vol.Schema:
         d = device
+        new_label = ("Новое устройство (ID выдаётся автоматически)"
+                     if self.hass.config.language.startswith("ru")
+                     else "New device (ID given automatically)")
+        identities = [SelectOptionDict(value=NEW_DEVICE, label=new_label)] + [
+            SelectOptionDict(value=i.id, label=f"#{i.id} {i.name or i.macs[0]} ({i.category})")
+            for i in devices.identities()]
         return vol.Schema({
             vol.Required(CONF_MAC, default=d.mac if d else ""): str,
             vol.Optional(CONF_NAME, default=d.name if d else ""): str,
@@ -351,6 +358,9 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(CONF_DEVICE_TYPE, default=(d.device_type if d else "") or "auto"): SelectSelector(
                 SelectSelectorConfig(options=["auto", *LISTABLE_KINDS], translation_key=CONF_DEVICE_TYPE,
                                      mode=SelectSelectorMode.DROPDOWN)),
+            # Which device this MAC belongs to: its own (new) or one already listed.
+            vol.Optional(CONF_IDENTITY, default=d.identity if d else NEW_DEVICE): SelectSelector(
+                SelectSelectorConfig(options=identities, mode=SelectSelectorMode.DROPDOWN)),
         })
 
     async def _save_device(self, user_input: dict[str, Any], replace_mac: str | None,
@@ -369,6 +379,29 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         if device.mac != replace_mac and device.mac in store.devices:
             errors[CONF_MAC] = "duplicate_mac"
             return False
+        choice = user_input.get(CONF_IDENTITY) or NEW_DEVICE
+        current = store.devices.identity_of(replace_mac or device.mac)
+        if choice == NEW_DEVICE:
+            # A device of its own: keep the current one if this is its only MAC,
+            # else split the MAC off to a new device (next free ID).
+            if current is not None and len(current.macs) > 1:
+                await store.async_remove([replace_mac or device.mac])
+            elif current is not None:
+                device.identity = current.id
+            await store.async_upsert(device, replace_mac=replace_mac)
+            return True
+        target = store.devices.identity(choice)
+        if target is None:
+            errors[CONF_IDENTITY] = "invalid_identity"
+            return False
+        device.identity = target.id
+        if current is None or current.id != target.id:
+            # Moving the MAC to another existing device: that device keeps its
+            # name, category ... (the form showed the old device's values).
+            if replace_mac and replace_mac != device.mac:
+                await store.async_remove([replace_mac])
+            await store.async_link_mac(target.id, device.mac)
+            return True
         await store.async_upsert(device, replace_mac=replace_mac)
         return True
 
@@ -376,13 +409,14 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None and await self._save_device(user_input, None, errors):
             return await self.async_step_device_list()
-        schema = self._device_schema()
+        schema = self._device_schema((await async_get_device_store(self.hass)).devices)
         if user_input is not None:
             schema = self.add_suggested_values_to_schema(schema, user_input)
         return self.async_show_form(step_id="device_add", data_schema=schema, errors=errors)
 
     def _device_choices(self, store) -> list[SelectOptionDict]:
-        return [SelectOptionDict(value=d.mac, label=f"{d.name or d.mac} ({d.mac}, {d.category})")
+        return [SelectOptionDict(value=d.mac,
+                                 label=f"#{d.identity} {d.name or d.mac} ({d.mac}, {d.category})")
                 for d in store.devices]
 
     async def async_step_device_edit_select(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -404,7 +438,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None and await self._save_device(user_input, self._editing_mac, errors):
             return await self.async_step_device_list()
-        schema = self._device_schema(store.devices.get(self._editing_mac))
+        schema = self._device_schema(store.devices, store.devices.get(self._editing_mac))
         if user_input is not None:
             schema = self.add_suggested_values_to_schema(schema, user_input)
         return self.async_show_form(step_id="device_edit", data_schema=schema, errors=errors)

@@ -237,7 +237,7 @@ async def test_device_actions(hass, make_entry, patch_api, db_url):  # noqa: F81
     route = await hass.services.async_call(DOMAIN, "device_route",
                                            {"mac": GUEST_PHONE.lower().replace("-", ":")},
                                            blocking=True, return_response=True)
-    assert route["mac"] == GUEST_PHONE and route["name"] is None
+    assert route["macs"] == [GUEST_PHONE] and route["name"] is None and route["identity"] is None
     assert [s["room_id"] for s in route["stops"]] == ["room_06"]
     assert route["stops"][0]["ended"] is None
     with pytest.raises(ServiceValidationError):

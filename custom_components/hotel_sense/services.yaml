@@ -182,8 +182,11 @@ device_route:
         config_entry:
           integration: hotel_sense
     mac:
-      required: true
       example: "AA-BB-CC-DD-EE-FF"
+      selector:
+        text:
+    identity:
+      example: "7"
       selector:
         text:
     start:
@@ -250,3 +253,22 @@ omada_known_devices:
       default: false
       selector:
         boolean:
+link_mac:
+  fields:
+    identity:
+      required: true
+      example: "7"
+      selector:
+        text:
+    mac:
+      required: true
+      example: "AA-BB-CC-DD-EE-FF"
+      selector:
+        text:
+unlink_mac:
+  fields:
+    mac:
+      required: true
+      example: "AA-BB-CC-DD-EE-FF"
+      selector:
+        text:

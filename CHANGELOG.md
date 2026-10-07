@@ -1,3 +1,10 @@
+# Hotel Sense 0.12.0
+- Device identities: the device list holds devices with one or more MACs; devices are numbered automatically in the order they are added (1, 2, 3 …, one series for every category, never reused) - MAC → device, so a staff phone that gets a new private MAC stays the same device. Name, category, owner, note, room and type belong to the device
+- CSV gets the `identity` column (last; CSVs without it import as before): rows with the same identity are MACs of one device. The device form has a *Device* drop-down (*New device* or a listed device - nothing typed); editing a MAC keeps the device
+- Actions `hotel_sense.link_mac` / `hotel_sense.unlink_mac`; `export_devices` also lists the devices; `device_route` takes `identity` and follows all its MACs
+- History database schema 4: the device list as the `devices` table and the view `v1_device_macs`
+- The list is migrated in place (one device per MAC); the old flat rows are still written, so going back to 0.11 keeps every device. MACs are never merged automatically
+
 # Hotel Sense 0.11.1
 - `omada_known_devices`: a device with almost no traffic for its hours (under 1 MB an hour) is suggested as *fixed* (sensor, lock, display) instead of *employee*; each candidate carries `suggest` and `reason`, and the CSV uses them
 

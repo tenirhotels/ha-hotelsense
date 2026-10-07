@@ -127,11 +127,13 @@ class PresenceManager:
             async_dispatcher_connect(self.hass, self.controller.signal_options_update,
                                      self._async_options_updated),
             self.store.async_add_listener(self.async_refresh),
+            self.store.async_add_listener(self._sync_devices),
         )
         for unsub in unsubs:
             self.entry.async_on_unload(unsub)
         self.async_process()
         self._sync_rooms()
+        self._sync_devices()
 
     @callback
     def _async_options_updated(self) -> None:
@@ -191,6 +193,14 @@ class PresenceManager:
         if rows != self._room_rows:
             self._room_rows = rows
             self.history.set_rooms(rows)
+
+    # -- history: the device list as the ``devices`` table -------------------- #
+    @callback
+    def _sync_devices(self) -> None:
+        if self.history is not None:
+            self.history.set_devices([
+                {"mac": d.mac, "identity_id": d.identity, "name": d.name, "category": d.category}
+                for d in self.store.devices])
 
     # -- history: device in room from ... to ... ---------------------------- #
     def _update_sessions(self) -> None:

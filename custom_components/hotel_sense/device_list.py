@@ -7,6 +7,16 @@
 
 Anything not on the list is a guest / unknown device.
 
+A MAC is an observation, not a device: phones use a private (random) MAC per
+network and get a new one when the network is forgotten or the phone reset.
+So the list holds **device identities** (numbered 1, 2, 3 ... in the order they
+are added, whatever their category: name, category, owner ...) and each
+identity has one or more MACs - MAC -> identity, never the other
+way round. A MAC belongs to at most one identity; MACs are linked to an
+identity only by the owner (``link_mac`` / the CSV ``identity`` column), never
+merged automatically. Callers that think in MACs still see one row
+(``KnownDevice``) per MAC, carrying the identity's attributes and its ID.
+
 The list is persisted in Home Assistant's ``.storage`` (see ``storage.py``);
 this module holds the data model and the CSV import/export and has no Home
 Assistant imports.
@@ -15,6 +25,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from dataclasses import asdict, dataclass, field
 
 from .device_kind import parse_kind
@@ -49,9 +60,27 @@ _HEADER_ALIASES = {
     "room": ("room", "номер", "комната"),
     "device_type": ("device_type", "device type", "devicetype", "тип устройства", "вид"),
     "area": ("area", "ha area", "помещение", "зона"),
+    "identity": ("identity", "identity_id", "device_id", "device id", "id", "идентификатор"),
 }
 
-CSV_FIELDS = ("mac", "name", "category", "owner", "note", "room", "device_type")
+# ``identity`` last: CSVs without it (positional or with a header) still import.
+CSV_FIELDS = ("mac", "name", "category", "owner", "note", "room", "device_type", "identity")
+
+# Identity IDs are sequence numbers ("1", "2" ...), the same series for every
+# category: the category can be corrected without the ID changing meaning.
+_ID_RE = re.compile(r"^#?0*([1-9][0-9]{0,8})$")
+# Identity attributes (everything of a row but the MAC and the identity ID).
+ATTRIBUTES = ("category", "name", "owner", "note", "room", "device_type")
+
+
+def parse_identity_id(value: str | int | None) -> str:
+    """Normalise an identity ID ("7", "#7", "007" -> "7"); "" stays "" (= assign one)."""
+    ident = str(value if value is not None else "").strip()
+    if not ident:
+        return ""
+    if (match := _ID_RE.match(ident)) is None:
+        raise ValueError(f"Invalid device number: {value!r} (a whole number, e.g. 7)")
+    return match.group(1)
 
 
 def parse_category(value: str | None, default: str | None = None) -> str:
@@ -74,6 +103,7 @@ class KnownDevice:
     note: str = ""
     room: str = ""  # where the device is installed (reference only; location comes from the AP)
     device_type: str = ""  # device_kind.KINDS value set by the owner; "" = detect
+    identity: str = ""  # the device identity this MAC belongs to ("" = keep / assign one)
 
     def __post_init__(self) -> None:
         self.mac = parse_mac(self.mac)
@@ -83,8 +113,42 @@ class KnownDevice:
         self.note = (self.note or "").strip()
         self.room = (self.room or "").strip()
         self.device_type = parse_kind(self.device_type)
+        self.identity = parse_identity_id(self.identity)
 
     def as_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass
+class DeviceIdentity:
+    """One physical device of the hotel and the MACs it has been seen with."""
+
+    id: str
+    category: str
+    name: str = ""
+    owner: str = ""
+    note: str = ""
+    room: str = ""
+    device_type: str = ""
+    macs: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self.id = parse_identity_id(self.id)
+        if not self.id:
+            raise ValueError("Identity ID is empty")
+        self.category = parse_category(self.category)
+        self.device_type = parse_kind(self.device_type)
+        macs: list[str] = []
+        for mac in self.macs:
+            if (mac := parse_mac(mac)) not in macs:
+                macs.append(mac)
+        self.macs = macs
+
+    def row(self, mac: str) -> KnownDevice:
+        return KnownDevice(mac=mac, identity=self.id,
+                           **{a: getattr(self, a) for a in ATTRIBUTES})
+
+    def as_dict(self) -> dict:
         return asdict(self)
 
 
@@ -100,59 +164,153 @@ class ImportResult:
 
 
 class DeviceList:
-    """In-memory list keyed by normalised MAC."""
+    """Device identities and the index MAC -> identity."""
 
     def __init__(self, devices: list[KnownDevice] | None = None) -> None:
-        self._devices: dict[str, KnownDevice] = {}
+        self._identities: dict[str, DeviceIdentity] = {}
+        self._by_mac: dict[str, str] = {}
+        self._last_number = 0  # highest generated ID number ever: IDs are never reused
         for device in devices or []:
-            self._devices[device.mac] = device
+            self.upsert(device)
 
     # -- queries ---------------------------------------------------------- #
     def __contains__(self, mac: str) -> bool:
         return self.get(mac) is not None
 
     def __len__(self) -> int:
-        return len(self._devices)
+        """Number of MACs on the list."""
+        return len(self._by_mac)
 
     def __iter__(self):
-        return iter(sorted(self._devices.values(), key=lambda d: (d.category, d.name, d.mac)))
+        """One row per MAC."""
+        rows = [self._identities[ident].row(mac) for mac, ident in self._by_mac.items()]
+        return iter(sorted(rows, key=lambda d: (d.category, d.name, d.mac)))
 
-    def get(self, mac: str) -> KnownDevice | None:
+    def identities(self) -> list[DeviceIdentity]:
+        """In number order."""
+        return sorted(self._identities.values(), key=lambda i: int(i.id))
+
+    def identity(self, identity_id: str) -> DeviceIdentity | None:
         try:
-            return self._devices.get(parse_mac(mac))
+            return self._identities.get(parse_identity_id(identity_id))
         except ValueError:
             return None
 
+    def identity_of(self, mac: str) -> DeviceIdentity | None:
+        try:
+            ident = self._by_mac.get(parse_mac(mac))
+        except ValueError:
+            return None
+        return self._identities[ident] if ident else None
+
+    def get(self, mac: str) -> KnownDevice | None:
+        identity = self.identity_of(mac)
+        return identity.row(parse_mac(mac)) if identity else None
+
     def category_of(self, mac: str) -> str | None:
-        device = self.get(mac)
-        return device.category if device else None
+        identity = self.identity_of(mac)
+        return identity.category if identity else None
 
     # -- mutations -------------------------------------------------------- #
+    def _highest_number(self) -> int:
+        """Highest device number given out or in use."""
+        return max(self._last_number, *(int(i) for i in self._identities), 0)
+
+    def _new_id(self) -> str:
+        self._last_number = self._highest_number() + 1
+        return str(self._last_number)
+
+    def _detach(self, mac: str) -> None:
+        ident = self._by_mac.pop(mac, None)
+        if ident is None:
+            return
+        identity = self._identities[ident]
+        identity.macs.remove(mac)
+        if not identity.macs:
+            del self._identities[ident]
+
+    def _attach(self, identity: DeviceIdentity, mac: str) -> None:
+        if self._by_mac.get(mac) == identity.id:
+            return
+        self._detach(mac)
+        self._identities[identity.id] = identity
+        identity.macs.append(mac)
+        self._by_mac[mac] = identity.id
+
     def upsert(self, device: KnownDevice) -> bool:
-        """Add or replace. Returns True if the MAC was new."""
-        is_new = device.mac not in self._devices
-        self._devices[device.mac] = device
+        """Add or update one MAC row. Returns True if the MAC was new.
+
+        The row's attributes become those of its identity: ``device.identity``
+        (created if new), else the MAC's current identity, else a new one.
+        """
+        is_new = device.mac not in self._by_mac
+        ident = device.identity or self._by_mac.get(device.mac) or self._new_id()
+        identity = self._identities.get(ident) or DeviceIdentity(id=ident,
+                                                                 category=device.category)
+        for attr in ATTRIBUTES:
+            setattr(identity, attr, getattr(device, attr))
+        self._attach(identity, device.mac)
         return is_new
 
+    def link_mac(self, identity_id: str, mac: str) -> str | None:
+        """Give ``mac`` to an existing identity. Returns the identity it had before."""
+        identity = self.identity(identity_id)
+        if identity is None:
+            raise KeyError(f"Unknown device identity: {identity_id}")
+        mac = parse_mac(mac)
+        before = self._by_mac.get(mac)
+        self._attach(identity, mac)
+        return before
+
     def remove(self, mac: str) -> bool:
-        return self._devices.pop(parse_mac(mac), None) is not None
+        """Take ``mac`` off the list (an identity left without MACs goes too)."""
+        mac = parse_mac(mac)
+        if mac not in self._by_mac:
+            return False
+        self._detach(mac)
+        return True
 
     def clear(self) -> None:
-        self._devices.clear()
+        self._identities.clear()
+        self._by_mac.clear()
 
     # -- (de)serialisation ------------------------------------------------ #
     def to_storage(self) -> dict:
-        return {"devices": [d.as_dict() for d in self]}
+        """Identities, plus the flat rows of 0.11 and before (so a downgrade
+        keeps every device, only without the grouping)."""
+        legacy = []
+        for row in self:
+            data = row.as_dict()
+            data.pop("identity")
+            legacy.append(data)
+        return {"identities": [i.as_dict() for i in self.identities()],
+                "last_id_number": self._highest_number(), "devices": legacy}
 
     @classmethod
     def from_storage(cls, data: dict | None) -> "DeviceList":
-        devices = []
-        for raw in (data or {}).get("devices", []):
+        data = data or {}
+        result = cls()
+        result._last_number = int(data.get("last_id_number") or 0)
+        if "identities" not in data:  # 0.11 and before: one row per MAC
+            for raw in data.get("devices", []):
+                try:
+                    result.upsert(KnownDevice(**raw))
+                except (TypeError, ValueError):
+                    continue  # corrupt row: skip instead of failing setup
+            return result
+        for raw in data["identities"]:
             try:
-                devices.append(KnownDevice(**raw))
+                identity = DeviceIdentity(**raw)
             except (TypeError, ValueError):
-                continue  # corrupt row: skip instead of failing setup
-        return cls(devices)
+                continue  # corrupt entry: skip instead of failing setup
+            if identity.id in result._identities:
+                continue
+            # A MAC stays with the first identity that has it.
+            identity.macs = [m for m in identity.macs if m not in result._by_mac]
+            if identity.macs:
+                result._identities[identity.id] = identity
+                result._by_mac.update(dict.fromkeys(identity.macs, identity.id))
+        return result
 
     def export_csv(self) -> str:
         out = io.StringIO()
@@ -166,8 +324,10 @@ class DeviceList:
                    default_category: str | None = None) -> ImportResult:
         """Import rows; invalid rows are reported, valid ones applied.
 
-        ``replace`` drops every existing entry first (only if at least one row
-        is valid, so a broken file never wipes the list).
+        Rows with the same ``identity`` are MACs of one device: their attributes
+        are merged (the last non-empty value wins) and must agree on the
+        category. ``replace`` drops every existing entry first (only if at least
+        one row is valid, so a broken file never wipes the list).
         """
         result = ImportResult()
         parsed: list[KnownDevice] = []
@@ -181,16 +341,36 @@ class DeviceList:
                     note=row.get("note", ""),
                     room=row.get("room", ""),
                     device_type=row.get("device_type", ""),
+                    identity=row.get("identity", ""),
                 ))
             except ValueError as err:
                 result.errors.append(f"line {line_no}: {err}")
+                continue
+            device = parsed[-1]
+            first = next((d for d in parsed[:-1] if device.identity
+                          and d.identity == device.identity), None)
+            if first is not None and first.category != device.category:
+                result.errors.append(
+                    f"line {line_no}: {device.identity} is {first.category} on an earlier line")
+                parsed.pop()
+
+        merged: dict[str, dict[str, str]] = {}
+        for device in parsed:
+            if device.identity:
+                attrs = merged.setdefault(device.identity, {})
+                attrs.update({a: v for a in ATTRIBUTES if (v := getattr(device, a))})
+        for device in parsed:
+            for attr, value in merged.get(device.identity, {}).items():
+                setattr(device, attr, value)
 
         if replace and parsed:
             keep = {d.mac for d in parsed}
-            for mac in [m for m in self._devices if m not in keep]:
-                del self._devices[mac]
+            for mac in [m for m in self._by_mac if m not in keep]:
+                self._detach(mac)
                 result.removed += 1
-        for device in parsed:
+        # Rows naming their identity first, so an ID generated for a row without
+        # one can never be an ID a later row names.
+        for device in sorted(parsed, key=lambda d: not d.identity):
             if self.upsert(device):
                 result.added += 1
             else:

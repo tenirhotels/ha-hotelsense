@@ -34,11 +34,20 @@ class DeviceListStore:
             listener()
 
     async def async_upsert(self, device: KnownDevice, *, replace_mac: str | None = None) -> None:
-        """Add or update; ``replace_mac`` removes the old entry when a MAC is edited."""
+        """Add or update; ``replace_mac`` removes the old entry when a MAC is edited
+        (the new MAC keeps the device identity of the old one)."""
         if replace_mac and replace_mac != device.mac:
+            if not device.identity and (old := self.devices.identity_of(replace_mac)):
+                device.identity = old.id
             self.devices.remove(replace_mac)
         self.devices.upsert(device)
         await self._async_changed()
+
+    async def async_link_mac(self, identity_id: str, mac: str) -> str | None:
+        """Give ``mac`` to a device identity; returns the identity it had before."""
+        before = self.devices.link_mac(identity_id, mac)
+        await self._async_changed()
+        return before
 
     async def async_remove(self, macs: list[str]) -> int:
         removed = sum(1 for mac in macs if self.devices.remove(mac))
