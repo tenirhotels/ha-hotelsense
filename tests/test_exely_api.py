@@ -571,3 +571,25 @@ async def test_probe_service_needs_the_api(hass, make_entry, patch_api):
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(DOMAIN, "exely_api_probe", {}, blocking=True,
                                        return_response=True)
+
+
+def test_documented_pms_api_shapes():
+    """Shapes from Exely's PMS API spec (universal-v2): GetReservationResponse, FindRoomsResponse."""
+    reservation = {"warnings": [], "errors": [], "reservation": {
+        "number": BOOKING, "reservationStatus": "Confirmed",
+        "customer": {"pmsPersonId": "1", "personName": {"firstName": "***"}},
+        "roomStays": [{"pmsRoomStayId": "4503599628227391", "roomId": ROOM_06,
+                       "roomTypeId": "315367", "guestsIds": ["1"],
+                       "checkInDateTime": "2026-10-04T14:00", "checkOutDateTime": "2026-10-06T12:00",
+                       "actualCheckInDateTime": "2026-10-04T15:12",
+                       "actualCheckOutDateTime": "2026-10-06T10:40", "status": "CheckedOut"}]}}
+    stay = parse_reservation(reservation)[0]
+    assert (stay.stay_id, stay.room_id, stay.status, stay.raw_status) == (
+        "4503599628227391", ROOM_06, STATUS_CHECKED_OUT, "CheckedOut")
+    assert (stay.check_in, stay.check_out, stay.actual_check_in, stay.actual_check_out) == (
+        "2026-10-04T14:00", "2026-10-06T12:00", "2026-10-04T15:12", "2026-10-06T10:40")
+    assert [stay_status(s) for s in ("New", "CheckedIn", "CheckedOut", "Cancelled")] == [
+        None, STATUS_CHECKED_IN, STATUS_CHECKED_OUT, STAY_CANCELLED]
+    rooms = {"warnings": [], "errors": [], "nextPageToken": "p2", "hasNextPage": True,
+             "rooms": [{"id": ROOM_06, "displayName": "06", "roomTypeId": "315367", "floorId": "2"}]}
+    assert parse_rooms(rooms) == ({ROOM_06: "06"}, "p2")
