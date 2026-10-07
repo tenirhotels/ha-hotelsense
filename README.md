@@ -346,6 +346,10 @@ The database user needs the right to create views (the MariaDB add-on's
   last `seen_days` (30). Guests stay days; staff, months and years. With the
   Omada name, hours, traffic, last seen, how all Wi-Fi clients spread by
   total hours (to pick the threshold) and an `import_csv` with the Omada names.
+  A device with almost no traffic for its hours (under 1 MB an hour - a
+  sensor, a lock, a display) is suggested as *fixed*, the others as
+  *employee*. Devices are never merged by name: two phones can carry the same
+  default name.
   Omada keeps no "first seen" there and forgets clients after its data
   retention; phones with a rotating private MAC appear as several short-lived
   clients.

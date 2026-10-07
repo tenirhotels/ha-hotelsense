@@ -1,3 +1,6 @@
+# Hotel Sense 0.11.1
+- `omada_known_devices`: a device with almost no traffic for its hours (under 1 MB an hour) is suggested as *fixed* (sensor, lock, display) instead of *employee*; each candidate carries `suggest` and `reason`, and the CSV uses them
+
 # Hotel Sense 0.11.0
 - Action `hotel_sense.omada_known_devices`: staff devices missing from the device list, found right away in Omada's known-client list - many hours on the Wi-Fi in total (`min_hours`, 500) and seen recently (`seen_days`, 30). With the Omada name, hours, traffic, the spread of all clients by hours and a CSV for `hotel_sense.import_devices`
 - Fix: `device_candidates` failed once the device list had devices (0.10.0)

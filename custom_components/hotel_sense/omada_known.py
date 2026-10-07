@@ -16,6 +16,10 @@ from datetime import datetime, timezone
 from .mac import is_random_mac
 from .omada_hub import KnownClient
 
+# Under this much traffic per hour connected, a device is suggested as fixed
+# equipment (sensor, lock, display): a phone in use moves far more.
+FIXED_BYTES_PER_HOUR = 1_000_000
+
 # Total hours connected: how the site's Wi-Fi clients spread (counts only).
 BUCKETS = ((24, "under_24h"), (120, "1_to_5_days"), (500, "5_to_21_days"),
            (2000, "21_to_83_days"), (None, "over_83_days"))
@@ -38,6 +42,9 @@ def omada_candidates(clients: Iterable[KnownClient], known: Collection[str], now
 
     Only those seen in the last ``seen_days`` days (staff who left drop out)
     and only Wi-Fi clients unless ``wired`` (presence counts Wi-Fi only).
+    ``suggest`` is ``fixed`` for a device with almost no traffic for its hours
+    (under ``FIXED_BYTES_PER_HOUR``), else ``employee``. Devices are never
+    merged by name: two phones can carry the same default name.
     ``import_csv`` takes the Omada name where Omada has one; check the list
     and import it with ``hotel_sense.import_devices``.
     """
@@ -57,8 +64,13 @@ def omada_candidates(clients: Iterable[KnownClient], known: Collection[str], now
             continue
         name = client.name if client.name and client.name.upper().replace(":", "-") \
             != client.mac else None
+        per_hour = (client.download + client.upload) / hours
+        suggest = "fixed" if per_hour < FIXED_BYTES_PER_HOUR else "employee"
         candidates.append({
-            "mac": client.mac, "omada_name": name, "hours": round(hours),
+            "mac": client.mac, "omada_name": name, "suggest": suggest,
+            "reason": (f"{round(hours)} h on Wi-Fi with almost no traffic" if suggest == "fixed"
+                       else f"{round(hours)} h on Wi-Fi"),
+            "hours": round(hours),
             "last_seen": _iso(client.last_seen), "first_seen": _iso(client.first_seen),
             "download_gb": round(client.download / 1e9, 1),
             "upload_gb": round(client.upload / 1e9, 1),
@@ -68,8 +80,8 @@ def omada_candidates(clients: Iterable[KnownClient], known: Collection[str], now
     candidates.sort(key=lambda c: (-c["hours"], c["mac"]))
     candidates = candidates[:limit]
     lines = ["mac,name,category,note"] + [
-        f"{c['mac']},{(c['omada_name'] or '').replace(',', ' ')},employee,"
-        f"Omada: {c['hours']} h on Wi-Fi; last seen {(c['last_seen'] or '')[:10]}"
+        f"{c['mac']},{(c['omada_name'] or '').replace(',', ' ')},{c['suggest']},"
+        f"Omada: {c['reason'].replace(',', ' ')}; last seen {(c['last_seen'] or '')[:10]}"
         for c in candidates]
     return {"clients": total, "hours_spread": spread, "candidates": candidates,
             "import_csv": "\n".join(lines) + "\n" if candidates else ""}
