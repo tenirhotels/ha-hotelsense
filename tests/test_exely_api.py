@@ -538,3 +538,30 @@ async def test_menu_and_page_show_what_is_set_up(hass, make_entry, patch_api, ex
     page = await _options_menu(hass, entry, "exely_api")
     assert page["description_placeholders"]["status"] == status
     assert page["description_placeholders"]["secret_saved"] == "yes"
+
+
+async def test_probe_service_reports_what_exely_answers(hass, make_entry, patch_api,
+                                                        aioclient_mock, no_sleep):
+    aioclient_mock.post(AUTH_URL, json={"access_token": "jwt"})
+    aioclient_mock.get(f"{ROOMS_URL}?maxPageSize=100", json=ROOMS)
+    aioclient_mock.get(ROOMS_URL, status=500, headers={"x-request-id": "abc123"},
+                       text='{"errors":[{"code":"InternalError"}]}')
+    aioclient_mock.get(_booking_url(), json=_reservation((ROOM_06, "CheckedIn")))
+    entry = await _api_hotel(hass, make_entry)
+    result = await hass.services.async_call(DOMAIN, "exely_api_probe", {"booking": BOOKING},
+                                            blocking=True, return_response=True)
+    assert result["sign_in"] == "ok" and result["property_id"] == PROP
+    assert not result["rooms"]["ok"] and "InternalError" in result["rooms"]["error"]
+    assert "request_id: abc123" in result["rooms"]["error"]
+    assert result["rooms_max_page_size"] == {"ok": True, "rooms": 2, "shape": shape(ROOMS)}
+    assert result["reservation"]["stays"][0]["room_id"] == ROOM_06
+    assert "***" not in repr(result)  # structure only, no guest values
+    assert _calls(aioclient_mock, ROOMS_URL) == 2  # no retries
+
+
+async def test_probe_service_needs_the_api(hass, make_entry, patch_api):
+    from homeassistant.exceptions import ServiceValidationError
+    await _exely_hotel(hass, make_entry)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(DOMAIN, "exely_api_probe", {}, blocking=True,
+                                       return_response=True)

@@ -300,9 +300,9 @@ class ExelyApi:
             return token
 
     # -- requests ---------------------------------------------------------- #
-    async def _get(self, path: str, params: dict | None = None) -> Any:
+    async def _get(self, path: str, params: dict | None = None, *, retries: int = RETRIES) -> Any:
         error: Exception | None = None
-        for attempt in range(RETRIES + 1):
+        for attempt in range(retries + 1):
             if attempt:
                 await _sleep(self.retry_delay)
             token = await self._get_token()
@@ -312,14 +312,14 @@ class ExelyApi:
                     resp = await self._session.get(
                         f"{PMS_URL}{path}", params=params,
                         headers={"Authorization": f"Bearer {token}"})
-                    if resp.status == 401 and attempt < RETRIES:
+                    if resp.status == 401 and attempt < retries:
                         self._token = None  # expired early: one new token
                         error = ExelyAuthError("HTTP 401")
                         continue
                     if resp.status == 429:
                         retry_after = _retry_after(resp.headers.get("retry-after"))
                         error = ExelyApiError("HTTP 429 (Exely rate limit)")
-                        if retry_after > MAX_RETRY_AFTER or attempt == RETRIES:
+                        if retry_after > MAX_RETRY_AFTER or attempt == retries:
                             break
                         await _sleep(retry_after)
                         continue
@@ -463,6 +463,39 @@ class ExelyApi:
                            f"({self.rooms_error}), rooms are matched by roomId")
         return count
 
+    async def async_probe(self, property_id: str, booking: str | None = None) -> dict:
+        """One request per endpoint, no retries: what Exely answers (shape, no values).
+
+        For finding out why a call fails (and for Exely support: the error text
+        carries the request_id). At most 4 requests.
+        """
+        result: dict[str, Any] = {"property_id": property_id}
+        try:
+            await self._get_token()
+        except ExelyApiError as err:
+            result["sign_in"] = f"{type(err).__name__}: {err}"
+            return result
+        result["sign_in"] = "ok"
+        calls = [("rooms", f"/v2/properties/{property_id}/rooms", None),
+                 ("rooms_max_page_size", f"/v2/properties/{property_id}/rooms",
+                  {"maxPageSize": 100})]
+        if booking:
+            calls.append(("reservation",
+                          f"/v2/properties/{property_id}/reservations/{booking}", None))
+        for name, path, params in calls:
+            try:
+                data = await self._get(path, params, retries=0)
+            except ExelyApiError as err:
+                result[name] = {"ok": False, "error": f"{type(err).__name__}: {err}"}
+                continue
+            entry: dict[str, Any] = {"ok": True, "shape": shape(data)}
+            if name.startswith("rooms"):
+                entry["rooms"] = len(parse_rooms(data)[0])
+            else:
+                entry["stays"] = [asdict(s) for s in parse_reservation(data)]
+            result[name] = entry
+        return result
+
     def diagnostics(self) -> dict:
         rooms = self._rooms or {}
         return {
@@ -492,6 +525,10 @@ async def _describe(resp: aiohttp.ClientResponse, secret: str | None = None) -> 
         text = ""
     if secret:
         text = text.replace(secret, "***")
+    request_id = next((resp.headers[h] for h in ("request-id", "x-request-id", "request_id")
+                       if h in resp.headers), None)
+    if request_id and request_id not in text:
+        text = f"{text} (request_id: {request_id})".strip()
     return f"HTTP {resp.status}: {text}" if text else f"HTTP {resp.status}"
 
 

@@ -208,6 +208,7 @@ recent messages (without the secret) are in the diagnostics.
 | `hotel_sense.block_client` / `unblock_client` | Blocks / unblocks a device (`mac`) in Omada |
 | `hotel_sense.ap_ssids` | Which SSIDs are enabled on each access point (or on `access_point`) |
 | `hotel_sense.set_ap_ssid` | Turns an SSID on/off on an access point: `access_point` = MAC, AP name or a room (all its APs), `ssid`, `enabled` |
+| `hotel_sense.exely_api_probe` | Asks Exely once per endpoint (sign-in, room list with and without `maxPageSize`, the reservation for an optional `booking`) and returns the answer: structure without values, or the error with its `request_id` for Exely support |
 
 Nothing calls them automatically yet; they are the building blocks for later
 automations (e.g. room SSID off at check-out).

@@ -119,3 +119,14 @@ set_ap_ssid:
       required: true
       selector:
         boolean:
+
+exely_api_probe:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    booking:
+      example: "20261006-9999-123456"
+      selector:
+        text:
