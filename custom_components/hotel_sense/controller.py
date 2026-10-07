@@ -31,6 +31,9 @@ from .omada_hub import (
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SCAN_INTERVAL = 30
+# entry.data keys of the controller connection: a change reloads the entry
+# (Exely secrets live in entry.data too, but rotating them needs no reload).
+CONNECTION_KEYS = (CONF_URL, CONF_SITE, CONF_USERNAME, CONF_PASSWORD, CONF_VERIFY_SSL)
 # Keys of the entities each access point has (see sensor.py / binary_sensor.py).
 AP_ENTITY_KEYS = {"sensor": {"uptime", "clients"}, "binary_sensor": {"status"}}
 # Names/types of clients that just left are kept this long (presence keeps a
@@ -48,6 +51,7 @@ class OmadaController:
         self.hass = hass
         self.entry = config_entry
         self.hub: OmadaHub = build_hub(hass, config_entry.data)
+        self._connection = {k: config_entry.data.get(k) for k in CONNECTION_KEYS}
         self.available = True
         self.access_points: dict[str, AccessPoint] = {}
         self.clients: dict[str, ConnectedClient] = {}
@@ -169,7 +173,8 @@ class OmadaController:
             return
         old_interval = controller.option_scan_interval
         controller.load_config_entry_options()
-        if controller.option_scan_interval != old_interval:
+        connection = {k: config_entry.data.get(k) for k in CONNECTION_KEYS}
+        if controller.option_scan_interval != old_interval or connection != controller._connection:
             hass.config_entries.async_schedule_reload(config_entry.entry_id)
             return
         async_dispatcher_send(hass, controller.signal_options_update)

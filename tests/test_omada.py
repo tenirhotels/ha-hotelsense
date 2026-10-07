@@ -16,8 +16,7 @@ from tplink_omada_client.exceptions import (
     BadControllerUrl, ConnectionFailed, LoginFailed, RequestFailed, UnsupportedControllerVersion,
 )
 
-from custom_components.hotel_sense.config_flow import LEGACY_OPTIONS
-from custom_components.hotel_sense.const import CONF_SCAN_INTERVAL, CONF_SITE, DOMAIN
+from custom_components.hotel_sense.const import CONF_SCAN_INTERVAL, CONF_SITE, DOMAIN, LEGACY_OPTIONS
 from custom_components.hotel_sense.diagnostics import async_get_config_entry_diagnostics
 from custom_components.hotel_sense.ids import make_unique_id
 from custom_components.hotel_sense.room_entity import (
@@ -319,7 +318,7 @@ async def test_config_flow_unknown_site(hass, patch_api):
     assert result["errors"] == {"base": "unknown_site"}
 
 
-async def test_reconfigure_keeps_exely_secrets(hass, make_entry, patch_api):
+async def test_reconfigure_keeps_exely_secrets(hass, make_entry, patch_api, caplog):
     """Changing the controller address must not invalidate the Exely webhook."""
     from custom_components.hotel_sense.const import CONF_EXELY_API_KEY, CONF_EXELY_WEBHOOK_ID
 
@@ -335,3 +334,22 @@ async def test_reconfigure_keeps_exely_secrets(hass, make_entry, patch_api):
     assert entry.data[CONF_URL] == "https://192.0.2.9"
     assert (entry.data[CONF_EXELY_WEBHOOK_ID], entry.data[CONF_EXELY_API_KEY]) == secrets
     assert entry.state is ConfigEntryState.LOADED
+    # Reloaded by the entry's update listener, with the new address.
+    assert hass.data[DOMAIN][entry.entry_id].hub.url == "https://192.0.2.9"
+    assert "Detected" not in caplog.text  # HA's deprecation reports
+
+
+async def test_legacy_options_are_removed_on_startup(hass, make_entry, patch_api):
+    """Options as found on the production install after the update to 0.3."""
+    current = {"common_areas": ["admin_house"], "exely_room_map": "", "min_rssi": 0.0,
+               "presence_timeout": 5.0, "roaming_debounce": 10.0, CONF_SCAN_INTERVAL: 15.0}
+    legacy = {"enable_device_bandwidth_sensors": False, "enable_device_clients_sensors": False,
+              "enable_device_controls": False, "enable_device_radio_utilization_sensors": False,
+              "enable_device_statistics_sensors": False, "scan_interval_details": 600.0,
+              "track_clients": False, "track_devices": True}
+    entry = make_entry(current | legacy)
+    controller = await _setup(hass, entry)
+    assert dict(entry.options) == current
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.data[DOMAIN][entry.entry_id] is controller  # not reloaded
+    assert controller.option_scan_interval == 15
