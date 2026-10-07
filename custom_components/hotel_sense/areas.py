@@ -20,8 +20,6 @@ from .device_list import parse_csv_rows
 from .ids import NS_AP, make_unique_id
 from .mac import parse_mac
 
-AP_TYPE = "ap"
-
 STATUS_OK = "ok"
 STATUS_NO_AREA = "no_area"
 STATUS_MISMATCH = "mismatch"
@@ -31,14 +29,13 @@ STATUS_NO_DEVICE = "no_device"  # AP known to Omada but not (yet) in HA
 
 def access_point_macs(controller) -> dict[str, str]:
     """MAC -> name of every access point (switches/gateways are not locations)."""
-    return {mac: dev.name for mac, dev in controller.api.devices.items.items()
-            if dev.type == AP_TYPE}
+    return {mac: ap.name for mac, ap in controller.access_points.items()}
 
 
 def ap_device(hass: HomeAssistant, controller, mac: str) -> dr.DeviceEntry | None:
     return dr.async_get(hass).async_get_device_by_identifier(
         (DOMAIN, make_unique_id(NS_AP, controller.site_id, mac)),
-        controller._config_entry.entry_id)
+        controller.entry.entry_id)
 
 
 def resolve_ap_areas(hass: HomeAssistant, controller) -> dict[str, str | None]:

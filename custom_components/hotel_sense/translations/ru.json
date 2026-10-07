@@ -3,77 +3,53 @@
     "step": {
       "user": {
         "title": "Hotel Sense - Powered by Omada",
-        "description": "Параметры подключения к контроллеру Omada.",
+        "description": "Адрес контроллера Omada, сайт и учётная запись контроллера (достаточно учётной записи только для просмотра, Viewer).",
         "data": {
           "url": "URL",
           "site": "Сайт",
           "username": "Имя пользователя",
           "password": "Пароль",
-          "verify_ssl": "Проверять SSL"
+          "verify_ssl": "Проверять SSL-сертификат"
         }
       },
       "reconfigure": {
         "title": "Hotel Sense - Powered by Omada",
-        "description": "Параметры подключения к контроллеру Omada.",
+        "description": "Адрес контроллера Omada, сайт и учётная запись контроллера (достаточно учётной записи только для просмотра, Viewer).",
         "data": {
           "url": "URL",
           "site": "Сайт",
           "username": "Имя пользователя",
           "password": "Пароль",
-          "verify_ssl": "Проверять SSL"
+          "verify_ssl": "Проверять SSL-сертификат"
         }
       }
     },
     "error": {
-      "service_unavailable": "Не удалось подключиться.",
-      "ssl_error": "Не удалось проверить SSL-сертификат.",
-      "invalid_url": "Неверный URL. Формат: http(s)://(host)",
-      "faulty_credentials": "Неверное имя пользователя или пароль.",
-      "api_error": "Ошибка API, подробности в логах.",
-      "unknown_site": "Не удалось получить сайт. Проверьте его имя.",
-      "unsupported_version": "Версия контроллера не поддерживается. Обновите Omada."
+      "service_unavailable": "Контроллер не отвечает по этому адресу.",
+      "ssl_error": "Не удалось проверить сертификат контроллера (для самоподписанного снимите «Проверять SSL-сертификат»).",
+      "invalid_url": "Неверный адрес, пример: https://192.168.0.4",
+      "faulty_credentials": "Контроллер не принял имя пользователя или пароль.",
+      "api_error": "Контроллер вернул ошибку, подробности в журнале Home Assistant.",
+      "unknown_site": "На контроллере нет сайта с таким именем (как в Omada, например Default).",
+      "unsupported_version": "Нужен контроллер Omada 5.1 или новее."
     },
     "abort": {
-      "reconfigure_successful": "Настройки обновлены."
+      "reconfigure_successful": "Настройки сохранены, Hotel Sense перезапущен."
     }
   },
   "options": {
     "step": {
       "device_tracker": {
         "title": "Настройки Hotel Sense",
-        "description": "Опрос контроллера",
+        "description": "Как часто запрашивать у контроллера Omada подключённых клиентов.",
         "data": {
-          "scan_interval": "Интервал опроса",
-          "scan_interval_details": "Интервал опроса деталей",
-          "track_clients": "Создавать устройства и сущности для подключённых клиентов (диагностика; присутствие работает и без этого)"
-        }
-      },
-      "client_options": {
-        "title": "Настройки Hotel Sense",
-        "description": "Отслеживание клиентов",
-        "data": {
-          "enable_client_bandwidth_sensors": "Сенсоры трафика",
-          "enable_client_uptime_sensors": "Сенсоры аптайма",
-          "enable_client_block_switch": "Переключатель блокировки клиента",
-          "disconnect_timeout": "Таймаут отключения трекера (минуты)",
-          "ssid_filter": "SSID для отслеживания беспроводных клиентов"
-        }
-      },
-      "device_options": {
-        "title": "Настройки Hotel Sense",
-        "description": "Отслеживание устройств Omada",
-        "data": {
-          "enable_device_bandwidth_sensors": "Сенсоры трафика",
-          "enable_device_statistics_sensors": "Сенсоры CPU и памяти (аптайм включён всегда)",
-          "enable_device_clients_sensors": "Число клиентов по диапазонам, гостей и пользователей (общее число включено всегда)",
-          "enable_device_radio_utilization_sensors": "Сенсоры загрузки радио",
-          "enable_device_controls": "Управление устройствами"
+          "scan_interval": "Интервал опроса (секунды)"
         }
       },
       "init": {
         "title": "Настройки Hotel Sense",
         "menu_options": {
-          "device_tracker": "Опрос Omada и сущности",
+          "device_tracker": "Опрос Omada",
           "presence": "Присутствие в номерах",
           "device_list": "Фиксированные устройства и сотрудники",
           "exely": "Exely PMS (заезд / выезд)"
@@ -229,6 +205,9 @@
       },
       "violation": {
         "name": "Нарушение"
+      },
+      "ap_status": {
+        "name": "Статус"
       }
     },
     "sensor": {
@@ -261,6 +240,15 @@
           "unmatched": "Не распознано",
           "invalid": "Некорректно"
         }
+      },
+      "ap_uptime": {
+        "name": "Время работы"
+      },
+      "ap_clients": {
+        "name": "Клиенты"
+      },
+      "controller_clients": {
+        "name": "Клиенты"
       }
     },
     "select": {

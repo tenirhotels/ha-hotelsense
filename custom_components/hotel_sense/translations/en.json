@@ -7,10 +7,10 @@
           "site": "Site",
           "username": "Username",
           "password": "Password",
-          "verify_ssl": "Verify SSL"
+          "verify_ssl": "Verify SSL certificate"
         },
         "title": "Hotel Sense - Powered by Omada",
-        "description": "Set required parameters to connect to your Omada Controller."
+        "description": "Omada controller address, site and a controller account (a read-only Viewer account is enough)."
       },
       "reconfigure": {
         "data": {
@@ -18,62 +18,38 @@
           "site": "Site",
           "username": "Username",
           "password": "Password",
-          "verify_ssl": "Verify SSL"
+          "verify_ssl": "Verify SSL certificate"
         },
         "title": "Hotel Sense - Powered by Omada",
-        "description": "Set required parameters to connect to your Omada Controller."
+        "description": "Omada controller address, site and a controller account (a read-only Viewer account is enough)."
       }
     },
     "error": {
-      "service_unavailable": "Unable to connect to service.",
-      "ssl_error": "Unable to verify SSL certificate.",
-      "invalid_url": "Invalid URL. Please format as http(s)://(host)",
-      "faulty_credentials": "Invalid username or password.",
-      "api_error": "An API error occurred. Please see logs for more information.",
-      "unknown_site": "Unable to get site information. Please ensure the site id is correct.",
-      "unsupported_version": "Unsupported controller version. Please upgrade your Omada controller."
+      "service_unavailable": "The controller does not answer at this address.",
+      "ssl_error": "The controller's certificate could not be verified (untick \"Verify SSL\" for a self-signed one).",
+      "invalid_url": "The address is not valid, e.g. https://192.168.0.4",
+      "faulty_credentials": "The controller rejected the user name or password.",
+      "api_error": "The controller answered with an error; see the Home Assistant log.",
+      "unknown_site": "No site with this name on the controller (as shown in Omada, e.g. Default).",
+      "unsupported_version": "Omada controller 5.1 or newer is required."
     },
     "abort": {
-      "reconfigure_successful": "Re-configuration was successful."
+      "reconfigure_successful": "Settings saved, Hotel Sense restarted."
     }
   },
   "options": {
     "step": {
       "device_tracker": {
+        "title": "Hotel Sense Options",
+        "description": "How often the Omada controller is asked for its connected clients.",
         "data": {
-          "scan_interval": "Scan interval",
-          "scan_interval_details": "Scan interval details",
-          "track_clients": "Create devices and entities for connected clients (diagnostics; presence works without it)"
-        },
-        "description": "Configure options",
-        "title": "Hotel Sense Options"
-      },
-      "client_options": {
-        "data": {
-          "enable_client_bandwidth_sensors": "Enable bandwidth sensors",
-          "enable_client_uptime_sensors": "Enable uptime sensors",
-          "enable_client_block_switch": "Enable client block switch",
-          "disconnect_timeout": "Client disconnect timeout (minutes)",
-          "ssid_filter": "Select SSIDs to track wireless clients on"
-        },
-        "description": "Configure client tracking",
-        "title": "Hotel Sense Options"
-      },
-      "device_options": {
-        "data": {
-          "enable_device_bandwidth_sensors": "Enable bandwidth sensors",
-          "enable_device_statistics_sensors": "Enable CPU and memory sensors (uptime is always on)",
-          "enable_device_clients_sensors": "Enable per-band, guest and user client counts (total is always on)",
-          "enable_device_radio_utilization_sensors": "Enable radio utilization sensors",
-          "enable_device_controls": "Enable device controls"
-        },
-        "description": "Configure device tracking",
-        "title": "Hotel Sense Options"
+          "scan_interval": "Scan interval (seconds)"
+        }
       },
       "init": {
         "title": "Hotel Sense Options",
         "menu_options": {
-          "device_tracker": "Omada polling and entities",
+          "device_tracker": "Omada polling",
           "presence": "Room presence",
           "device_list": "Fixed and employee devices",
           "exely": "Exely PMS (check-in / check-out)"
@@ -229,6 +205,9 @@
       },
       "violation": {
         "name": "Violation"
+      },
+      "ap_status": {
+        "name": "Status"
       }
     },
     "sensor": {
@@ -261,6 +240,15 @@
           "unmatched": "Not recognised",
           "invalid": "Invalid"
         }
+      },
+      "ap_uptime": {
+        "name": "Uptime"
+      },
+      "ap_clients": {
+        "name": "Clients"
+      },
+      "controller_clients": {
+        "name": "Clients"
       }
     },
     "select": {

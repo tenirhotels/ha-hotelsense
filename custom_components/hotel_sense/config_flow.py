@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
-import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
@@ -21,33 +21,14 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
 )
 
-from .api.errors import (
-    LoginFailed,
-    LoginRequired,
-    OmadaApiException,
-    RequestError,
-    SSLError,
-    InvalidURLError,
-    UnknownSite,
-    UnsupportedVersion,
-)
+import asyncio
+
+from aiohttp import ClientSSLError
+
 from .const import (
     DOMAIN as OMADA_DOMAIN,
     CONF_SITE,
-    CONF_SSID_FILTER,
-    CONF_DISCONNECT_TIMEOUT,
     CONF_SCAN_INTERVAL,
-    CONF_SCAN_INTERVAL_DETAILS,
-    CONF_TRACK_CLIENTS,
-    CONF_TRACK_DEVICES,
-    CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS,
-    CONF_ENABLE_CLIENT_UPTIME_SENSORS,
-    CONF_ENABLE_CLIENT_BLOCK_SWITCH,
-    CONF_ENABLE_DEVICE_BANDWIDTH_SENSORS,
-    CONF_ENABLE_DEVICE_RADIO_UTILIZATION_SENSORS,
-    CONF_ENABLE_DEVICE_CONTROLS,
-    CONF_ENABLE_DEVICE_STATISTICS_SENSORS,
-    CONF_ENABLE_DEVICE_CLIENTS_SENSORS,
     CONF_PRESENCE_TIMEOUT,
     CONF_ROAMING_DEBOUNCE,
     CONF_MIN_RSSI,
@@ -60,7 +41,11 @@ from .const import (
     DEFAULT_MIN_RSSI,
 )
 from .areas import resolve_ap_areas
-from .controller import OmadaController, get_api_controller
+from .controller import OmadaController, build_hub
+from .omada_hub import (
+    BadControllerUrl, ConnectionFailed, LoginFailed, OmadaClientException, OmadaHub,
+    SiteNotFound, UnsupportedControllerVersion,
+)
 from .device_kind import LISTABLE_KINDS
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
 from .storage import async_get_device_store
@@ -78,175 +63,101 @@ CONF_REPLACE = "replace"
 CONF_DEFAULT_CATEGORY = "default_category"
 
 
-class OmadaFlowHandler(config_entries.ConfigFlow, domain=OMADA_DOMAIN):
+# Options of Hotel Sense <= 0.2 (ha-omada entities), no longer used.
+LEGACY_OPTIONS = {
+    "scan_interval_details", "track_clients", "track_devices", "ssid_filter",
+    "disconnect_timeout", "enable_client_bandwidth_sensors", "enable_client_uptime_sensors",
+    "enable_client_block_switch", "enable_device_bandwidth_sensors",
+    "enable_device_radio_utilization_sensors", "enable_device_controls",
+    "enable_device_statistics_sensors", "enable_device_clients_sensors",
+}
+
+
+async def async_validate_connection(hass, data: dict[str, Any]) -> tuple[OmadaHub | None, str | None]:
+    """Log in with ``data``: (hub, None) or (None, error key)."""
+    hub = build_hub(hass, data)
+    try:
+        async with asyncio.timeout(30):
+            await hub.async_connect()
+    except LoginFailed:
+        return None, "faulty_credentials"
+    except BadControllerUrl:
+        return None, "invalid_url"
+    except SiteNotFound:
+        return None, "unknown_site"
+    except UnsupportedControllerVersion:
+        return None, "unsupported_version"
+    except ConnectionFailed as err:
+        return None, "ssl_error" if isinstance(err.__cause__, ClientSSLError) else "service_unavailable"
+    except TimeoutError:
+        return None, "service_unavailable"
+    except OmadaClientException:
+        return None, "api_error"
+    return hub, None
+
+
+def _connection_schema(defaults: Mapping[str, Any]) -> vol.Schema:
+    """Controller URL, site, account; ``defaults`` pre-fill (no password)."""
+    return vol.Schema({
+        vol.Required(CONF_URL, default=defaults.get(CONF_URL, "")): str,
+        vol.Required(CONF_SITE, default=defaults.get(CONF_SITE, "Default")): str,
+        vol.Required(CONF_USERNAME, default=defaults.get(CONF_USERNAME, "")): str,
+        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_VERIFY_SSL, default=defaults.get(CONF_VERIFY_SSL, True)): bool,
+    })
+
+
+def _clean(user_input: dict[str, Any]) -> dict[str, Any]:
+    return {**user_input, CONF_URL: user_input[CONF_URL].strip().rstrip("/")}
+
+
+class HotelSenseConfigFlow(config_entries.ConfigFlow, domain=OMADA_DOMAIN):
+    """Add Hotel Sense: one config entry per Omada controller site."""
+
     VERSION = 1
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> OmadaOptionsFlowHandler:
-        return OmadaOptionsFlowHandler(config_entry)
-
-    def __init__(self) -> None:
-        self.config: dict[str, Any] = {}
-
-    @callback
-    def _show_setup_form(
-        self,
-        user_input: dict[str, Any] | None = None,
-        errors: dict[str, str] | None = None,
-    ) -> ConfigFlowResult:
-        if user_input is None:
-            user_input = {}
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_URL, default=user_input.get(CONF_URL, "")): str,
-                    vol.Optional(
-                        CONF_SITE, default=user_input.get(CONF_SITE, "Default")
-                    ): str,
-                    vol.Required(
-                        CONF_USERNAME, default=user_input.get(CONF_USERNAME, "")
-                    ): str,
-                    vol.Required(CONF_PASSWORD): str,
-                    vol.Optional(
-                        CONF_VERIFY_SSL, default=user_input.get(CONF_VERIFY_SSL, True)
-                    ): bool,
-                }
-            ),
-            errors=errors or {},
-        )
+    def async_get_options_flow(config_entry: ConfigEntry) -> HotelSenseOptionsFlow:
+        return HotelSenseOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        errors = {}
-
+        errors: dict[str, str] = {}
         if user_input is not None:
-            user_input[CONF_URL] = user_input[CONF_URL].strip("/")
-
-            self.config = {
-                CONF_URL: user_input[CONF_URL],
-                CONF_SITE: user_input[CONF_SITE],
-                CONF_USERNAME: user_input[CONF_USERNAME],
-                CONF_PASSWORD: user_input[CONF_PASSWORD],
-                CONF_VERIFY_SSL: user_input[CONF_VERIFY_SSL],
-            }
-
-            try:
-                controller = await get_api_controller(
-                    self.hass,
-                    self.config[CONF_URL],
-                    self.config[CONF_USERNAME],
-                    self.config[CONF_PASSWORD],
-                    30,
-                    self.config[CONF_SITE],
-                    self.config[CONF_VERIFY_SSL],
-                )
-
-                return self.async_create_entry(
-                    title=f"{controller.name}: {controller.site}", data=user_input
-                )
-
-            except (LoginFailed, LoginRequired):
-                errors["base"] = "faulty_credentials"
-            except InvalidURLError:
-                errors["base"] = "invalid_url"
-            except SSLError:
-                errors["base"] = "ssl_error"
-            except UnknownSite:
-                errors["base"] = "unknown_site"
-            except UnsupportedVersion:
-                errors["base"] = "unsupported_version"
-            except RequestError:
-                errors["base"] = "service_unavailable"
-            except OmadaApiException:
-                errors["base"] = "api_error"
-
-            return self._show_setup_form(user_input, errors)
-
-        else:
-            return self._show_setup_form(user_input, errors)
+            data = _clean(user_input)
+            hub, errors["base"] = await async_validate_connection(self.hass, data)
+            if hub is not None:
+                return self.async_create_entry(title=f"{hub.name}: {data[CONF_SITE]}", data=data)
+        return self.async_show_form(step_id="user", errors=errors,
+                                    data_schema=_connection_schema(user_input or {}))
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Handle reconfiguration of an existing entry."""
-        errors = {}
-        reconfigure_entry = self._get_reconfigure_entry()
-
+        """Change the controller address, site or account of an existing entry."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
         if user_input is not None:
-            user_input[CONF_URL] = user_input[CONF_URL].strip("/")
-
-            try:
-                controller = await get_api_controller(
-                    self.hass,
-                    user_input[CONF_URL],
-                    user_input[CONF_USERNAME],
-                    user_input[CONF_PASSWORD],
-                    30,
-                    user_input[CONF_SITE],
-                    user_input[CONF_VERIFY_SSL],
-                )
-
-                # Unload before updating the entry to avoid async_update_entry
-                # firing a reload listener that races with our manual reload.
-                await self.hass.config_entries.async_unload(reconfigure_entry.entry_id)
-                self.hass.config_entries.async_update_entry(
-                    reconfigure_entry,
-                    title=f"{controller.name}: {controller.site}",
-                    data=user_input,
-                )
-                await self.hass.config_entries.async_setup(reconfigure_entry.entry_id)
-                return self.async_abort(reason="reconfigure_successful")
-
-            except (LoginFailed, LoginRequired):
-                errors["base"] = "faulty_credentials"
-            except InvalidURLError:
-                errors["base"] = "invalid_url"
-            except SSLError:
-                errors["base"] = "ssl_error"
-            except UnknownSite:
-                errors["base"] = "unknown_site"
-            except UnsupportedVersion:
-                errors["base"] = "unsupported_version"
-            except RequestError:
-                errors["base"] = "service_unavailable"
-            except OmadaApiException:
-                errors["base"] = "api_error"
-
-        # Pre-fill form with existing config entry data
-        current_data = reconfigure_entry.data
-
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_URL, default=current_data.get(CONF_URL, "")
-                    ): str,
-                    vol.Optional(
-                        CONF_SITE, default=current_data.get(CONF_SITE, "Default")
-                    ): str,
-                    vol.Required(
-                        CONF_USERNAME, default=current_data.get(CONF_USERNAME, "")
-                    ): str,
-                    vol.Required(CONF_PASSWORD): str,
-                    vol.Optional(
-                        CONF_VERIFY_SSL, default=current_data.get(CONF_VERIFY_SSL, True)
-                    ): bool,
-                }
-            ),
-            errors=errors,
-        )
+            data = {**entry.data, **_clean(user_input)}
+            hub, errors["base"] = await async_validate_connection(self.hass, data)
+            if hub is not None:
+                return self.async_update_reload_and_abort(
+                    entry, title=f"{hub.name}: {data[CONF_SITE]}", data=data)
+        return self.async_show_form(step_id="reconfigure", errors=errors,
+                                    data_schema=_connection_schema(user_input or entry.data))
 
 
-class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
-    def __init__(self, config_entry: ConfigEntry) -> None:
+class HotelSenseOptionsFlow(config_entries.OptionsFlow):
+    """Configure: polling, presence, known devices, Exely."""
+
+    def __init__(self) -> None:
         self.options: dict[str, Any] | None = None
         self.controller: OmadaController | None = None
         self._editing_mac: str | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if not self.options:
-            self.options = dict(self.config_entry.options)
+            # Options of the ha-omada entities removed in 0.3 are dropped.
+            self.options = {k: v for k, v in self.config_entry.options.items()
+                            if k not in LEGACY_OPTIONS}
 
         self.controller: OmadaController = self.hass.data[OMADA_DOMAIN][
             self.config_entry.entry_id
@@ -258,113 +169,23 @@ class OmadaOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_device_tracker(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
-            self.options.update(user_input)
-            # Access point devices are always on (rooms are their Areas).
-            self.options[CONF_TRACK_DEVICES] = True
-            if self.options[CONF_TRACK_CLIENTS]:
-                return await self.async_step_client_options()
-            return await self.async_step_device_options()
-
-        return self.async_show_form(
-            step_id="device_tracker",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=self.controller.option_scan_interval,
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=10, mode=NumberSelectorMode.BOX, unit_of_measurement="seconds"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL_DETAILS,
-                        default=self.controller.option_scan_interval_details,
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=10, mode=NumberSelectorMode.BOX, unit_of_measurement="seconds"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_TRACK_CLIENTS, default=self.controller.option_track_clients
-                    ): bool,
-                }
-            ),
-            last_step=False,
-        )
-
-    async def async_step_client_options(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
-            self.options.update(user_input)
-            return await self.async_step_device_options()
-
-        ssid_filter = {ssid: ssid for ssid in sorted(self.controller.api.ssids)}
-
-        # Remove selected options that may not exist anymore.
-        ssid_filter_default = list(filter(
-            lambda i: i in ssid_filter, self.controller.option_ssid_filter))
-
-        return self.async_show_form(
-            step_id="client_options",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_SSID_FILTER, default=ssid_filter_default
-                    ): cv.multi_select(ssid_filter),
-                    vol.Optional(
-                        CONF_DISCONNECT_TIMEOUT,
-                        default=self.controller.option_disconnect_timeout,
-                    ): cv.positive_int,
-                    vol.Optional(
-                        CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS,
-                        default=self.controller.option_client_bandwidth_sensors,
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_CLIENT_UPTIME_SENSORS,
-                        default=self.controller.option_client_uptime_sensor,
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_CLIENT_BLOCK_SWITCH,
-                        default=self.controller.option_client_block_switch,
-                    ): bool,
-                }
-            ),
-            last_step=False,
-        )
-
-    async def async_step_device_options(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Polling: how often the controller is asked for its clients."""
         if user_input is not None:
             self.options.update(user_input)
             return await self._update_options()
 
         return self.async_show_form(
-            step_id="device_options",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_ENABLE_DEVICE_BANDWIDTH_SENSORS,
-                        default=self.controller.option_device_bandwidth_sensors,
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_DEVICE_STATISTICS_SENSORS,
-                        default=self.controller.option_device_statistics_sensors,
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_DEVICE_CLIENTS_SENSORS,
-                        default=self.controller.option_device_clients_sensors,
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_DEVICE_RADIO_UTILIZATION_SENSORS,
-                        default=self.controller.option_device_radio_utilization_sensors,
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_DEVICE_CONTROLS,
-                        default=self.controller.option_device_controls,
-                    ): bool,
-                }
-            ),
-            last_step=True,
+            step_id="device_tracker",
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=self.controller.option_scan_interval,
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=10, max=300, mode=NumberSelectorMode.BOX, unit_of_measurement="seconds"
+                    )
+                ),
+            }),
         )
 
     async def _update_options(self) -> ConfigFlowResult:

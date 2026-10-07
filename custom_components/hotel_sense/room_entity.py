@@ -218,7 +218,7 @@ class MisplacedFixedDevicesSensor(SensorEntity):
     def __init__(self, manager: PresenceManager, device_info: DeviceInfo) -> None:
         self.manager = manager
         self.entity_id = "sensor.hotel_sense_misplaced_devices"
-        self._attr_unique_id = f"misplaced_devices-{manager.controller.api.controller_id}"
+        self._attr_unique_id = f"misplaced_devices-{manager.controller.controller_id}"
         self._attr_device_info = device_info
 
     async def async_added_to_hass(self) -> None:
@@ -246,7 +246,7 @@ class ExelyLastEventSensor(SensorEntity):
     def __init__(self, receiver, device_info: DeviceInfo) -> None:
         self.receiver = receiver
         self.entity_id = "sensor.hotel_sense_exely_last_event"
-        self._attr_unique_id = f"exely_last_event-{receiver.manager.controller.api.controller_id}"
+        self._attr_unique_id = f"exely_last_event-{receiver.manager.controller.controller_id}"
         self._attr_device_info = device_info
 
     async def async_added_to_hass(self) -> None:

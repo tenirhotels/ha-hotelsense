@@ -8,6 +8,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # The Omada client comes from zachcheatham/ha-omada, which has no license
-          # (see NOTICE.md), so no LICENSE can be added for the whole repository.
-          ignore: license

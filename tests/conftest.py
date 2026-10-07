@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from homeassistant.const import CONF_PASSWORD, CONF_URL, CONF_USERNAME, CONF_VERIFY_SSL
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.hotel_sense.const import (
-    CONF_DISCONNECT_TIMEOUT, CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS,
-    CONF_ENABLE_CLIENT_BLOCK_SWITCH, CONF_ENABLE_CLIENT_UPTIME_SENSORS,
-    CONF_ENABLE_DEVICE_BANDWIDTH_SENSORS, CONF_ENABLE_DEVICE_CLIENTS_SENSORS,
-    CONF_ENABLE_DEVICE_CONTROLS, CONF_ENABLE_DEVICE_STATISTICS_SENSORS,
-    CONF_SITE, CONF_SSID_FILTER, CONF_TRACK_CLIENTS, DOMAIN,
-)
+from custom_components.hotel_sense.const import CONF_SITE, DOMAIN
 
 from .fakes import SITE_NAME, FakeApi, default_api
 
@@ -30,35 +24,20 @@ def fake_api() -> FakeApi:
 @pytest.fixture
 def make_entry():
     def _make(options: dict | None = None) -> MockConfigEntry:
-        # Phase 0 tests exercise the per-client entities, which are off by default
-        # since 0.2.0; tests of the default pass {CONF_TRACK_CLIENTS: False}.
-        opts = {
-            CONF_TRACK_CLIENTS: True,
-            CONF_DISCONNECT_TIMEOUT: 5,
-            CONF_ENABLE_CLIENT_BANDWIDTH_SENSORS: True,
-            CONF_ENABLE_CLIENT_UPTIME_SENSORS: True,
-            CONF_ENABLE_CLIENT_BLOCK_SWITCH: True,
-            CONF_ENABLE_DEVICE_BANDWIDTH_SENSORS: True,
-            CONF_ENABLE_DEVICE_STATISTICS_SENSORS: True,
-            CONF_ENABLE_DEVICE_CLIENTS_SENSORS: True,
-            CONF_ENABLE_DEVICE_CONTROLS: True,
-        }
-        opts.update(options or {})
         return MockConfigEntry(
             domain=DOMAIN,
             title="Omada",
             data={
                 CONF_URL: "https://omada.test:8043", CONF_USERNAME: "u", CONF_PASSWORD: "p",
-                CONF_VERIFY_SSL: False, CONF_SITE: SITE_NAME, CONF_SSID_FILTER: [],
-                CONF_DISCONNECT_TIMEOUT: 5,
+                CONF_VERIFY_SSL: False, CONF_SITE: SITE_NAME,
             },
-            options=opts,
+            options=dict(options or {}),
         )
     return _make
 
 
 @pytest.fixture
 def patch_api(fake_api):
-    with patch("custom_components.hotel_sense.controller.get_api_controller",
-               new=AsyncMock(return_value=fake_api)):
+    """The library's OmadaClient replaced by the fake controller."""
+    with patch("custom_components.hotel_sense.omada_hub.OmadaClient", new=fake_api):
         yield fake_api
