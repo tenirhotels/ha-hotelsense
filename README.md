@@ -92,13 +92,39 @@ Requests without the right `API-KEY` header are rejected (401). Everything else
 is answered with 200 so Exely does not retry. An event is applied only if it is
 clearly a check-in or a check-out and the room is found; the result is in
 `sensor.hotel_sense_exely_last_event` (`applied` / `partial` / `unmatched` /
-`invalid`). The last 20 raw payloads are kept in memory and can be downloaded
+`invalid` / `api_error`). The last 20 raw payloads are kept in memory and can be downloaded
 via the integration's *Download diagnostics* — they contain guest data, mask it
 before sharing. The manual status select stays as a fallback.
 
 If the key or the address leaks, tick *Generate a new API key* and/or *Generate
 a new webhook address* in the same settings page: the old one stops working at
 once and the form shows the new value to enter in Exely.
+
+### Exely API: the room of a booking
+
+Exely webhook events name the booking (`BookingNumber`, `PropertyId`), not the
+room. With Exely Connect API access, Hotel Sense looks the room up:
+Configure → *Exely API (room of a booking)* → client ID, client secret (both
+from the API connection in Exely, read access to reservations and rooms) and
+the property ID. Saving checks them with one room-list request. The secret is
+stored in Home Assistant only and redacted in diagnostics.
+
+Requests are kept to a minimum, Exely is only called when a webhook needs a room:
+
+* reservation by number: one request per booking, cached for the stay (a
+  single-room booking costs one request for check-in and check-out; a changed
+  booking is looked up again); repeated webhook deliveries (same `eventId`) are
+  ignored;
+* room list (`roomId` → name): stored on disk, refreshed at most once a day, or
+  once an hour when an unknown room appears;
+* one token per 14 minutes; at most 1 request per second and 30 per hour;
+  `429 retry-after` is honoured; at most 2 retries.
+
+Exely room names are matched to Areas like webhook room names (the room
+mapping applies). For a booking with several rooms, only the room stays Exely
+shows with the event's status change. If the API fails, the event shows
+`api_error`. Only room stay IDs, statuses and dates are used; diagnostics show
+the response *structure* without values, plus request counters.
 
 ### Entities per room (`room_01` = HA area ID)
 

@@ -53,7 +53,8 @@
           "presence": "Room presence",
           "device_list": "Fixed and employee devices",
           "exely": "Exely PMS (check-in / check-out)",
-          "omada_webhook": "Omada webhook (instant updates)"
+          "omada_webhook": "Omada webhook (instant updates)",
+          "exely_api": "Exely API (room of a booking)"
         }
       },
       "presence": {
@@ -185,12 +186,29 @@
           "omada_new_secret": "The current secret stops working immediately; enter the new one in Omada."
         },
         "description": "⚠️ A new Shard Secret was generated: the old one no longer works. Enter the new one in Omada.\n\nIn the Omada controller: Settings → Services (or System) → Webhook → add a webhook:\nURL: {url}\nShard Secret: {secret}\nThen send the client events (connected / disconnected / roaming) and alerts to this webhook.\n\nAny message makes Hotel Sense poll the controller at once, so rooms update within seconds. The controller must reach Home Assistant on the local network. Messages received so far: {received}."
+      },
+      "exely_api": {
+        "title": "Exely Connect API",
+        "description": "Exely webhooks name the booking, not the room. With API access Hotel Sense looks the room up: one request per booking (cached for the stay) plus the room list once a day; never more than 30 requests an hour.\n\nIn Exely: Hotel settings → API connection → your connection: client_id and client_secret, with read access to reservations and rooms (PMS API). Property ID: your hotel's ID in Exely (the PropertyId of the webhook events).\n\nSaving checks the access with one room-list request. Leave client_id empty to switch the API off. Client secret saved: {secret_saved}.",
+        "data": {
+          "exely_client_id": "Client ID",
+          "exely_client_secret": "Client secret",
+          "exely_property_id": "Property ID"
+        },
+        "data_description": {
+          "exely_client_secret": "Leave empty to keep the saved secret."
+        }
       }
     },
     "error": {
       "invalid_mac": "Invalid MAC address.",
       "duplicate_mac": "This MAC address is already in the list.",
-      "import_errors": "Some rows were not imported. Fix them and import again."
+      "import_errors": "Some rows were not imported. Fix them and import again.",
+      "exely_secret_required": "Enter the client secret.",
+      "exely_property_required": "Enter the property ID.",
+      "exely_invalid_auth": "Exely rejected the client ID or secret.",
+      "exely_property_not_found": "Exely knows no property with this ID (or the access does not cover it).",
+      "exely_cannot_connect": "Exely did not answer; try again later or see the Home Assistant log."
     },
     "abort": {
       "no_devices": "The device list is empty."
@@ -261,7 +279,8 @@
           "applied": "Applied",
           "partial": "Partially applied",
           "unmatched": "Not recognised",
-          "invalid": "Invalid"
+          "invalid": "Invalid",
+          "api_error": "Exely API error"
         }
       },
       "ap_uptime": {

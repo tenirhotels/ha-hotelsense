@@ -53,7 +53,8 @@
           "presence": "Присутствие в номерах",
           "device_list": "Фиксированные устройства и сотрудники",
           "exely": "Exely PMS (заезд / выезд)",
-          "omada_webhook": "Вебхук Omada (мгновенные обновления)"
+          "omada_webhook": "Вебхук Omada (мгновенные обновления)",
+          "exely_api": "Exely API (номер по брони)"
         }
       },
       "presence": {
@@ -185,12 +186,29 @@
           "omada_new_secret": "Текущий секрет сразу перестанет работать; укажите новый в Omada."
         },
         "description": "⚠️ Сгенерирован новый Shard Secret: старый больше не работает. Укажите новый в Omada.\n\nВ контроллере Omada: Настройки → Сервисы (или Система) → Webhook → добавить вебхук:\nURL: {url}\nShard Secret: {secret}\nЗатем направьте в этот вебхук события клиентов (подключение / отключение / роуминг) и оповещения.\n\nЛюбое сообщение заставляет Hotel Sense сразу опросить контроллер — номера обновляются за секунды. Контроллер должен видеть Home Assistant в локальной сети. Получено сообщений: {received}."
+      },
+      "exely_api": {
+        "title": "Exely Connect API",
+        "description": "Вебхуки Exely называют бронь, а не номер. С доступом к API Hotel Sense находит номер сам: один запрос на бронь (запоминается на время проживания) и список номеров раз в сутки; не больше 30 запросов в час.\n\nВ Exely: Настройки отеля → Подключение по API → ваше подключение: client_id и client_secret с правом чтения броней и номеров (PMS API). ID отеля: идентификатор отеля в Exely (PropertyId в событиях вебхука).\n\nПри сохранении доступ проверяется одним запросом списка номеров. Оставьте client_id пустым, чтобы отключить API. Client secret сохранён: {secret_saved}.",
+        "data": {
+          "exely_client_id": "Client ID",
+          "exely_client_secret": "Client secret",
+          "exely_property_id": "ID отеля (Property ID)"
+        },
+        "data_description": {
+          "exely_client_secret": "Оставьте пустым, чтобы сохранить прежний."
+        }
       }
     },
     "error": {
       "invalid_mac": "Неверный MAC-адрес.",
       "duplicate_mac": "Этот MAC-адрес уже есть в списке.",
-      "import_errors": "Часть строк не импортирована. Исправьте их и повторите импорт."
+      "import_errors": "Часть строк не импортирована. Исправьте их и повторите импорт.",
+      "exely_secret_required": "Введите client secret.",
+      "exely_property_required": "Введите ID отеля.",
+      "exely_invalid_auth": "Exely отклонил client ID или secret.",
+      "exely_property_not_found": "В Exely нет отеля с таким ID (или доступ на него не распространяется).",
+      "exely_cannot_connect": "Exely не ответил; попробуйте позже или смотрите журнал Home Assistant."
     },
     "abort": {
       "no_devices": "Список устройств пуст."
@@ -261,7 +279,8 @@
           "applied": "Применено",
           "partial": "Применено частично",
           "unmatched": "Не распознано",
-          "invalid": "Некорректно"
+          "invalid": "Некорректно",
+          "api_error": "Ошибка Exely API"
         }
       },
       "ap_uptime": {

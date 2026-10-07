@@ -46,6 +46,10 @@ CONF_EXELY_ROOM_MAP = "exely_room_map"  # options: "101 = Room 01" lines
 CONF_EXELY_NEW_KEY = "exely_new_key"  # options-flow checkbox, not stored
 CONF_EXELY_NEW_URL = "exely_new_url"  # options-flow checkbox, not stored
 EVENT_EXELY = f"{DOMAIN}_exely_event"
+# Exely Connect API (room of a booking): entry.data, entered in the options
+CONF_EXELY_CLIENT_ID = "exely_client_id"
+CONF_EXELY_CLIENT_SECRET = "exely_client_secret"
+CONF_EXELY_PROPERTY_ID = "exely_property_id"
 
 # Omada controller webhook (instant refresh)
 CONF_OMADA_WEBHOOK_ID = "omada_webhook_id"  # entry.data, generated

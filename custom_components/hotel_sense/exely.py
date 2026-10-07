@@ -6,6 +6,10 @@ conservative: it applies a status only when the event is unambiguously a
 check-in or a check-out and the room can be found. Everything else is kept as
 "unmatched" for inspection (see diagnostics) instead of being guessed.
 
+Exely PMS actually posts a list of events such as
+``{"eventId", "eventType": "webpms:check_out", "payload": {"BookingNumber",
+"PropertyId"}}`` - no room: it is looked up by the booking (``exely_api``).
+
 No Home Assistant imports: pure logic, unit-tested in isolation.
 """
 from __future__ import annotations
@@ -24,6 +28,9 @@ _CANCEL = ("cancel", "undo", "revert", "rollback", "annul", "отмен", "ан�
 # Keys that may carry the room number/name.
 # (room type, room id, rooms count ... do not match).
 _ROOM_KEY = re.compile(r"^(room|номер|комната)(number|num|no|name|code|title)?$")
+# Booking reference (the room is then looked up via the Exely API).
+_BOOKING_KEYS = {"bookingnumber", "reservationnumber"}
+_PROPERTY_KEYS = {"propertyid", "hotelid"}
 
 
 def _norm_key(key: str) -> str:
@@ -65,6 +72,15 @@ class ExelyEvent:
     event: str | None = None
     status: str | None = None
     rooms: list[str] = field(default_factory=list)
+    booking: str | None = None
+    property_id: str | None = None
+    event_id: str | None = None
+
+
+def _text(value) -> str | None:
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return None
+    return str(value).strip() or None
 
 
 def parse_event(payload) -> ExelyEvent:
@@ -78,6 +94,12 @@ def parse_event(payload) -> ExelyEvent:
                 result.event = result.event or value.strip()
             elif result.event is None and depth == 0:
                 result.event = value.strip()
+        if key in _BOOKING_KEYS and result.booking is None:
+            result.booking = _text(value)
+        elif key in _PROPERTY_KEYS and result.property_id is None:
+            result.property_id = _text(value)
+        elif key == "eventid" and depth == 0:
+            result.event_id = _text(value)
         if _ROOM_KEY.match(key):
             if isinstance(value, (str, int)) and not isinstance(value, bool):
                 text = str(value).strip()
