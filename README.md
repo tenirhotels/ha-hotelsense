@@ -5,7 +5,8 @@
 Hotel Sense talks to the TP-Link Omada SDN controller (5.1 or newer; tested
 with 6.3) through [`tplink-omada-client`](https://github.com/MarkGodwin/tplink-omada-api),
 the library of Home Assistant's built-in TP-Link Omada integration. Library
-updates follow Home Assistant's: the version is pinned in `manifest.json`.
+updates follow Home Assistant's: `manifest.json` only sets a minimum version,
+so the version Home Assistant itself ships is used.
 
 
 ## Stage A: room presence (Присутствие по номерам)

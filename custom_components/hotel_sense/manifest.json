@@ -14,7 +14,7 @@
     "tplink_omada_client"
   ],
   "requirements": [
-    "tplink-omada-client==1.5.10"
+    "tplink-omada-client>=1.5.10"
   ],
   "version": "0.3.0"
 }
