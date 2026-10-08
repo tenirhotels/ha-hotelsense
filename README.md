@@ -75,6 +75,21 @@ Omada integration alongside it.
    staff at once. MACs are never merged automatically - a wrong merge would
    hide a guest in an empty room; random MACs are counted like any other
    device.
+
+   **Device suggestions** (needs the history database). Once an hour Hotel
+   Sense compares the new private (random) MACs of the last week with the
+   staff devices on the list and suggests "this new MAC is probably #7":
+   same name the phone gives (Omada), the old MAC went quiet before the new
+   one appeared, same zones, same working hours, same Wi-Fi network. Each
+   check that holds adds its weight, each that fails takes it away (name 35,
+   handoff 25, zones 15, hours 15, network 10; "?" = not enough data yet,
+   counts neither way); 60 or more is suggested. A MAC that was on the Wi-Fi
+   at the same time as the device is never suggested. Configure → *Fixed and
+   employee devices* → *Device suggestions*: per suggestion *Link to #7*,
+   *Ignore* (not suggested again) or *Decide later*. The sensor *Device
+   suggestions* (controller device) counts the open ones, for a notification;
+   the actions `hotel_sense.device_suggestions` / `ignore_device_suggestion`
+   do the same from automations. Nothing is ever linked automatically.
 4. **Presence options** (Configure → *Room presence*): disconnect timeout
    (default 5 min), roaming debounce (default 30 s), minimum RSSI to move a
    device between rooms (off by default, tune during the pilot), and the list

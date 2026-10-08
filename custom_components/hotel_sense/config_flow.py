@@ -83,6 +83,37 @@ CONF_ROOM = "room"
 CONF_DEVICE_TYPE = "device_type"
 CONF_IDENTITY = "identity"
 NEW_DEVICE = "new"  # identity choice: a device of its own (ID given automatically)
+SUGGESTION_LATER, SUGGESTION_LINK, SUGGESTION_IGNORE = "later", "link", "ignore"
+SUGGESTIONS_PER_PAGE = 8
+
+_CHECK_LABELS = {
+    "name": ("same name", "то же имя"),
+    "handoff": ("old MAC went quiet before", "старый MAC замолчал до появления"),
+    "zones": ("same zones", "те же зоны"),
+    "hours": ("same working hours", "те же часы работы"),
+    "ssid": ("same Wi-Fi network", "та же сеть Wi-Fi"),
+}
+
+
+def suggestion_text(item: dict, ru: bool) -> str:
+    """One suggestion for the form: who, score and every check."""
+    lines = [f"**{item['mac']}** {item['name'] or ''} → #{item['identity']} "
+             f"{item['identity_name'] or ''} ({item['category']}): "
+             f"{'совпадение' if ru else 'match'} {item['score']}%"]
+    for check in item["checks"]:
+        mark = {True: "✓", False: "✗", None: "?"}[check["ok"]]
+        label = _CHECK_LABELS[check["check"]][1 if ru else 0]
+        detail = check["detail"]
+        if check["ok"] is None:
+            detail = "мало данных" if ru else "not enough data"
+        elif check["check"] == "handoff" and detail is not None:
+            detail = f"{detail} ч" if ru else f"{detail} h"
+        elif check["check"] == "hours" and detail is not None:
+            detail = f"{round(detail * 100)}%"
+        elif isinstance(detail, list):
+            detail = ", ".join(detail)
+        lines.append(f"{mark} {label}" + (f": {detail}" if detail not in (None, "") else ""))
+    return "\n".join(lines)
 CONF_DEVICES = "devices"
 CONF_CSV = "csv"
 CONF_REPLACE = "replace"
@@ -328,7 +359,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="device_list",
             menu_options=["device_add", "device_edit_select", "device_delete",
-                          "device_import", "device_export", "finish"],
+                          "device_suggestions", "device_import", "device_export", "finish"],
             description_placeholders={
                 "fixed": str(fixed),
                 "employee": str(len(store.devices) - fixed),
@@ -456,6 +487,45 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                 SelectSelectorConfig(options=self._device_choices(store), multiple=True,
                                      mode=SelectSelectorMode.LIST))}),
         )
+
+    async def async_step_device_suggestions(self, user_input: dict[str, Any] | None = None
+                                            ) -> ConfigFlowResult:
+        """New random MACs that look like a staff device: link, ignore or decide later."""
+        manager = self.controller.suggestions
+        if self.controller.history is None:
+            return self.async_abort(reason="suggestions_need_history")
+        if user_input is None:
+            await manager.async_refresh()
+        items = manager.suggestions[:SUGGESTIONS_PER_PAGE]
+        if not items:
+            return self.async_abort(reason="no_suggestions")
+        if user_input is not None:
+            store = await async_get_device_store(self.hass)
+            for item in items:
+                choice = user_input.get(item["mac"], SUGGESTION_LATER)
+                if choice == SUGGESTION_LINK:
+                    await store.async_link_mac(item["identity"], item["mac"])
+                elif choice == SUGGESTION_IGNORE:
+                    await manager.async_ignore(item["mac"], item["identity"])
+            return await self.async_step_device_list()
+        ru = self.hass.config.language.startswith("ru")
+        fields = {}
+        for item in items:
+            device = f"#{item['identity']} {item['identity_name'] or ''}".strip()
+            options = [
+                SelectOptionDict(value=SUGGESTION_LATER,
+                                 label="Решить позже" if ru else "Decide later"),
+                SelectOptionDict(value=SUGGESTION_LINK,
+                                 label=f"Привязать к {device}" if ru else f"Link to {device}"),
+                SelectOptionDict(value=SUGGESTION_IGNORE,
+                                 label="Игнорировать" if ru else "Ignore"),
+            ]
+            fields[vol.Optional(item["mac"], default=SUGGESTION_LATER)] = SelectSelector(
+                SelectSelectorConfig(options=options, mode=SelectSelectorMode.LIST))
+        return self.async_show_form(
+            step_id="device_suggestions", data_schema=vol.Schema(fields),
+            description_placeholders={"suggestions": "\n\n".join(
+                suggestion_text(item, ru) for item in items)})
 
     async def async_step_device_import(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

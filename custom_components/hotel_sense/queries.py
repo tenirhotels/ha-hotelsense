@@ -300,3 +300,45 @@ def device_candidates(conn: Connection, start: datetime, end: datetime,
     return {"period": {"start": _iso(start), "end": _iso(end)},
             "candidates": candidates,
             "import_csv": "\n".join(csv_lines) + "\n" if candidates else ""}
+
+
+# -- device identity suggestions -------------------------------------------- #
+
+def suggestion_data(conn: Connection, since: datetime, new_since: datetime,
+                    known: Collection[str], device_macs: Collection[str],
+                    open_macs: Collection[str] = (), min_seconds: int = 1800) -> dict:
+    """What ``device_suggest`` compares, in one read.
+
+    Candidates: random MACs not on the device list, first seen at or after
+    ``new_since`` (a MAC seen before that is not new) with ``min_seconds`` of
+    presence, or on the Wi-Fi now (``open_macs``). Sessions and SSIDs since
+    ``since`` for the candidates and for ``device_macs`` (the MACs of the
+    devices on the list).
+    """
+    since, new_since = _naive(since), _naive(new_since)
+    known = set(known) | set(device_macs)
+    activity = {r["client_mac"]: (_dt(r["first"]), int(r["seconds"] or 0)) for r in _rows(
+        conn, "SELECT client_mac, MIN(started) AS first, SUM(seconds) AS seconds "
+              "FROM v1_presence WHERE ended > :start GROUP BY client_mac", start=since)}
+    candidates = set()
+    for mac in set(activity) | set(open_macs):
+        if mac in known or not is_random_mac(mac):
+            continue
+        first, seconds = activity.get(mac, (None, 0))
+        if first is not None and first < new_since:
+            continue  # not new
+        if seconds >= min_seconds or mac in open_macs:
+            candidates.add(mac)
+    macs = sorted(candidates | set(device_macs))
+    sessions: dict[str, list[tuple[str, datetime, datetime]]] = defaultdict(list)
+    ssids: dict[str, set[str]] = defaultdict(set)
+    if macs:
+        for r in _rows(conn, "SELECT client_mac, room_id, started, ended FROM v1_presence "
+                             "WHERE ended > :start AND client_mac IN :macs ORDER BY started",
+                       start=since, macs=macs):
+            sessions[r["client_mac"]].append((r["room_id"], _dt(r["started"]), _dt(r["ended"])))
+        for r in _rows(conn, "SELECT DISTINCT client_mac, ssid FROM v1_wifi_events "
+                             "WHERE ts >= :start AND ssid IS NOT NULL AND client_mac IN :macs",
+                       start=since, macs=macs):
+            ssids[r["client_mac"]].add(r["ssid"])
+    return {"candidates": sorted(candidates), "sessions": dict(sessions), "ssids": dict(ssids)}

@@ -1,3 +1,8 @@
+# Hotel Sense 0.13.0
+- Device suggestions: new private (random) MACs of the last week compared once an hour with the staff devices on the list - same name (Omada), the old MAC went quiet before the new one appeared, same zones, same working hours, same Wi-Fi network. A check that holds adds its weight, one that fails takes it away; not enough data counts neither way; 60+ is suggested. Never on the Wi-Fi at the same time as the device. Nothing is linked automatically
+- Configure → Fixed and employee devices → Device suggestions: Link to #N / Ignore (remembered) / Decide later, with every check shown
+- Sensor *Device suggestions* (count, for a notification); actions `hotel_sense.device_suggestions` and `hotel_sense.ignore_device_suggestion`. Needs the history database
+
 # Hotel Sense 0.12.0
 - Device identities: the device list holds devices with one or more MACs; devices are numbered automatically in the order they are added (1, 2, 3 …, one series for every category, never reused) - MAC → device, so a staff phone that gets a new private MAC stays the same device. Name, category, owner, note, room and type belong to the device
 - CSV gets the `identity` column (last; CSVs without it import as before): rows with the same identity are MACs of one device. The device form has a *Device* drop-down (*New device* or a listed device - nothing typed); editing a MAC keeps the device
