@@ -12,10 +12,11 @@ adds its weight and each check that fails takes it away (0-100) - a balance of
 evidence, not a probability. A check that cannot be judged yet (not enough
 data) counts neither way and is reported as such:
 
-* ``name``    the name the phone gives (Omada) is one of the device's - 35
-* ``handoff`` the device went quiet before the new MAC appeared (≤ 7 days) - 25
+* ``name``    the name the phone gives (Omada) is one of the device's - 30
+* ``model``   the same model (Omada's fingerprint, e.g. Galaxy A16) - 15
+* ``handoff`` the device went quiet before the new MAC appeared (≤ 7 days) - 20
 * ``zones``   the new MAC is mostly in zones the device uses - 15
-* ``hours``   ... at hours of the day the device is active - 15
+* ``hours``   ... at hours of the day the device is active - 10
 * ``ssid``    on a Wi-Fi network the device uses - 10
 
 No Home Assistant imports: pure logic, unit-tested in isolation.
@@ -26,7 +27,7 @@ from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-WEIGHTS = {"name": 35, "handoff": 25, "zones": 15, "hours": 15, "ssid": 10}
+WEIGHTS = {"name": 30, "model": 15, "handoff": 20, "zones": 15, "hours": 10, "ssid": 10}
 MIN_SCORE = 60
 HANDOFF = timedelta(days=7)
 MIN_HOURS_DATA = 1.0  # hours of presence before zones / hours can be judged
@@ -49,6 +50,7 @@ class Profile:
 
     names: set[str] = field(default_factory=set)  # normalise_name() forms
     label: str | None = None  # the name as Omada shows it (for display)
+    models: set[str] = field(default_factory=set)  # normalise_name() forms
     ssids: set[str] = field(default_factory=set)
     sessions: list[Session] = field(default_factory=list)
 
@@ -109,6 +111,9 @@ def compare(new: Profile, device: Profile) -> tuple[int, list[dict]] | None:
 
     same = sorted(n for n in new.names & device.names)
     check("name", bool(same) if new.names else None, same[0] if same else None)
+    same_model = sorted(new.models & device.models)
+    check("model", bool(same_model) if new.models and device.models else None,
+          same_model[0] if same_model else None)
 
     first, last = new.first_seen, device.last_seen
     if first is None or last is None:

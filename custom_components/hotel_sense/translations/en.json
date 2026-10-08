@@ -68,14 +68,16 @@
           "roaming_debounce": "Roaming debounce (seconds)",
           "min_rssi": "Minimum RSSI to change room (dBm, 0 = off)",
           "common_areas": "Common areas (no room status, no violations)",
-          "sleep_timeout": "Timeout for sleeping devices (minutes, 0 = same as disconnect timeout)"
+          "sleep_timeout": "Timeout for sleeping devices (minutes, 0 = same as disconnect timeout)",
+          "ssid_roles": "Wi-Fi network roles"
         },
         "data_description": {
           "presence_timeout": "A device that drops off Wi-Fi stays in its room this long.",
           "roaming_debounce": "A device must stay on an AP in another room this long before it is moved.",
           "min_rssi": "Weaker signals never move a device to another room (neighbouring AP). Tune during the pilot.",
           "common_areas": "Areas such as Admin House: presence is shown, but there is no room status and no violation.",
-          "sleep_timeout": "For a device whose last report was in Wi-Fi power save (screen off). 0 keeps the disconnect timeout for all devices."
+          "sleep_timeout": "For a device whose last report was in Wi-Fi power save (screen off). 0 keeps the disconnect timeout for all devices.",
+          "ssid_roles": "One per line: network = guest_room / staff / equipment; {n} = room number, * = anything. E.g. GUEST{n} = guest_room, hotel-service = staff, iot = equipment. Hints only (device suggestions, unlisted devices): staff also use guest networks, guests sometimes get the staff password; presence still comes from the access point."
         }
       },
       "device_list": {
@@ -220,10 +222,12 @@
           "db_username": "User",
           "db_password": "Password",
           "db_name": "Database",
-          "db_retention_months": "Keep history (months)"
+          "db_retention_months": "Keep history (months)",
+          "guest_name_days": "Keep guests' device names (days)"
         },
         "data_description": {
-          "db_password": "Leave empty to keep the saved password."
+          "db_password": "Leave empty to keep the saved password.",
+          "guest_name_days": "The MAC registry keeps the name each device gives (often with a person's name). For devices not on the device list it is cleared this many days after they were last seen; 0 = never stored. Set it as the law requires."
         }
       },
       "rooms": {
@@ -251,7 +255,8 @@
       "db_database": "No database with this name (create it in the MariaDB add-on configuration).",
       "db_connect": "The database server does not answer at this host and port (is the MariaDB add-on running?).",
       "rooms_csv_errors": "Some lines are invalid, nothing was saved:",
-      "invalid_identity": "The chosen device is no longer on the list"
+      "invalid_identity": "The chosen device is no longer on the list",
+      "invalid_ssid_roles": "Each line: network = guest_room / staff / equipment"
     },
     "abort": {
       "no_devices": "The device list is empty.",

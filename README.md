@@ -79,17 +79,32 @@ Omada integration alongside it.
    **Device suggestions** (needs the history database). Once an hour Hotel
    Sense compares the new private (random) MACs of the last week with the
    staff devices on the list and suggests "this new MAC is probably #7":
-   same name the phone gives (Omada), the old MAC went quiet before the new
-   one appeared, same zones, same working hours, same Wi-Fi network. Each
-   check that holds adds its weight, each that fails takes it away (name 35,
-   handoff 25, zones 15, hours 15, network 10; "?" = not enough data yet,
-   counts neither way); 60 or more is suggested. A MAC that was on the Wi-Fi
+   same name the phone gives (Omada), same model (Omada's fingerprint), the
+   old MAC went quiet before the new one appeared, same zones, same working
+   hours, same Wi-Fi network. Each check that holds adds its weight, each that
+   fails takes it away (name 30, model 15, handoff 20, zones 15, hours 10,
+   network 10; "?" = not enough data yet, counts neither way); 60 or more is
+   suggested - a default name alone is not enough. A MAC seen only on
+   equipment networks is not a staff phone and is not suggested. A MAC that was on the Wi-Fi
    at the same time as the device is never suggested. Configure → *Fixed and
    employee devices* → *Device suggestions*: per suggestion *Link to #7*,
    *Ignore* (not suggested again) or *Decide later*. The sensor *Device
    suggestions* (controller device) counts the open ones, for a notification;
    the actions `hotel_sense.device_suggestions` / `ignore_device_suggestion`
    do the same from automations. Nothing is ever linked automatically.
+   **Wi-Fi network roles** (Configure → *Room presence*), one per line,
+   `network = guest_room / staff / equipment`, `{n}` = room number, `*` =
+   anything:
+   ```
+   GUEST{n}      = guest_room
+   hotel-service = staff
+   iot           = equipment
+   ```
+   Hints only - staff also use guest networks, guests are sometimes given the
+   staff password: a device on an equipment network is an *unregistered
+   device* candidate as fixed equipment, one on the staff network (2+ days) as
+   staff; device suggestions skip MACs seen only on equipment networks.
+   Presence still comes from the access point.
 4. **Presence options** (Configure → *Room presence*): disconnect timeout
    (default 5 min), roaming debounce (default 30 s), minimum RSSI to move a
    device between rooms (off by default, tune during the pilot), and the list
@@ -349,6 +364,18 @@ the room model.
 | `v1_pms_events` | ts, event_id, event, booking, status, result, rooms |
 | `v1_wifi_events` | ts, event, client_mac, ap_mac, from_ap_mac, ssid, connected_seconds, traffic_kb |
 | `v1_device_macs` | identity_id, mac, name, category (the device list: join on `client_mac = mac`) |
+| `v1_macs` | every Wi-Fi MAC seen: mac, identity_id, first_seen, last_seen, seconds, random, name, vendor, model, os, ssids |
+
+**MAC registry** (`macs` / `v1_macs`). Omada keeps no first-seen date for a
+client and forgets clients after its data retention, so Hotel Sense keeps its
+own: every Wi-Fi MAC with the first and last time it was seen, its time on the
+Wi-Fi, the networks it used, Omada's vendor / model / OS, the name the device
+gives and the device of the list it belongs to. Written every 5 minutes. Rows
+go with the retention (months, by last seen); the names of devices that are
+not on the list are cleared *Keep guests' device names* days after they were
+last seen (Configure → *History database*; default 90, 0 = never stored - set
+it as the law requires). Device suggestions use it: a MAC first seen before
+the last week is not "new", and the model is compared.
 
 The database user needs the right to create views (the MariaDB add-on's
 `rights` give it); without it the tables still fill and a warning is logged.

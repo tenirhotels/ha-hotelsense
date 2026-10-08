@@ -14,13 +14,16 @@ from homeassistant.util import dt as dt_util
 from .areas import resolve_ap_areas, resolve_area
 from .const import (
     CONF_MIN_RSSI, CONF_PRESENCE_TIMEOUT, CONF_ROAMING_DEBOUNCE,
-    CONF_SLEEP_TIMEOUT, DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT, DEFAULT_ROAMING_DEBOUNCE,
+    CONF_SLEEP_TIMEOUT, CONF_SSID_ROLES, DEFAULT_MIN_RSSI, DEFAULT_PRESENCE_TIMEOUT,
+    DEFAULT_ROAMING_DEBOUNCE,
     DEFAULT_SLEEP_TIMEOUT, DOMAIN,
     EVENT_ROOM_STATE_CHANGED, STATUS_SOURCE_MANUAL, STATUS_SOURCE_RESTORED,
 )
 from .device_kind import resolve_kind
 from .device_list import CATEGORY_FIXED
 from .history import now as history_now
+from .mac_registry import MacTracker
+from .ssid_roles import SsidRoles
 from .rooms import (
     KIND_COMMON, STATUS_METADATA_CHANGED, HotelRoom, RoomRegistry, StatusValue, default_kind,
 )
@@ -86,6 +89,7 @@ class PresenceManager:
         self.engine = PresenceEngine()
         self.rooms: dict[str, RoomSnapshot] = {}
         self.data_stale = False
+        self.mac_tracker = MacTracker()
         # mac -> (area_id, since): open presence sessions (history database only).
         self.sessions: dict[str, tuple[str, datetime]] = {}
         self.traffic = TrafficMeter()
@@ -119,6 +123,10 @@ class PresenceManager:
             min_rssi=min_rssi if min_rssi < 0 else None,
             sleep_timeout=sleep * 60 if sleep > 0 else None,
         )
+        try:
+            self.ssid_roles = SsidRoles.parse(options.get(CONF_SSID_ROLES))
+        except ValueError:  # checked in the options form; never fail the setup on it
+            self.ssid_roles = SsidRoles()
 
     @callback
     def async_start(self) -> None:
@@ -168,6 +176,7 @@ class PresenceManager:
         self.engine.update(dt_util.utcnow().timestamp(), self._observations(), ap_areas)
         self._update_sessions()
         self._update_traffic()
+        self._update_macs()
 
         areas = ar.async_get(self.hass)
         new = []
@@ -201,6 +210,19 @@ class PresenceManager:
             self.history.set_devices([
                 {"mac": d.mac, "identity_id": d.identity, "name": d.name, "category": d.category}
                 for d in self.store.devices])
+
+    # -- history: every MAC seen (``macs`` registry) --------------------------- #
+    def _update_macs(self, force: bool = False) -> None:
+        if self.history is None:
+            return
+        now = history_now()
+        if not force:
+            self.mac_tracker.observe(now, self.controller.clients.values())
+        devices = self.store.devices
+        rows = self.mac_tracker.take(
+            now, lambda mac: (i.id if (i := devices.identity_of(mac)) else None), force=force)
+        if rows:
+            self.history.add_macs(rows)
 
     # -- history: device in room from ... to ... ---------------------------- #
     def _update_sessions(self) -> None:
@@ -248,6 +270,7 @@ class PresenceManager:
             self._end_session(mac, area_id, since, now)
         for row in self.traffic.flush():  # this hour so far
             self.history.add("room_traffic", **row)
+        self._update_macs(force=True)
 
     @callback
     def async_refresh(self) -> None:

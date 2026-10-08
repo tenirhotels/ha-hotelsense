@@ -1,3 +1,10 @@
+# Hotel Sense 0.14.0
+- MAC registry in the history database (`macs`, view `v1_macs`; schema 5): every Wi-Fi MAC with first / last seen, time on the Wi-Fi, networks used, Omada's vendor / model / OS, name and the device it belongs to. Written every 5 minutes; rows follow the retention
+- *Keep guests' device names* (Configure → History database, days; default 90, 0 = never stored): names of devices not on the list are cleared that long after they were last seen
+- Wi-Fi network roles (Configure → Room presence): `network = guest_room / staff / equipment`, `{n}` = room number. Hints only: unregistered devices on an equipment network are fixed-equipment candidates, on the staff network (2+ days) staff candidates; device suggestions skip MACs seen only on equipment networks. Presence is unchanged
+- Device suggestions: new check *same model* (15); weights name 30, model 15, handoff 20, zones 15, hours 10, network 10 - a default name alone no longer reaches 60. "New" is first seen ever (registry), not only within the last 30 days
+- Omada's vendor / model / OS read for connected clients
+
 # Hotel Sense 0.13.1
 - Action `hotel_sense.omada_client_probe` (diagnostics): for one MAC, what the Omada controller keeps about the client - per source (known clients, client details, connection history endpoints) the field names and every time field (first / last seen ...). Other values are not returned. To find whether the controller keeps a first-seen date
 

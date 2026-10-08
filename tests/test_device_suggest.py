@@ -20,16 +20,18 @@ def _workday(day: int, zones=("admin_house", "room_03", "room_05"), start=8) -> 
 
 def _staff() -> Profile:
     sessions = [s for d in range(5) for s in _workday(d)]
-    return Profile(names={"xiaomi-14"}, label="Xiaomi-14", ssids={"Staff"}, sessions=sessions)
+    return Profile(names={"xiaomi-14"}, label="Xiaomi-14", models={"xiaomi 14"}, ssids={"Staff"},
+                   sessions=sessions)
 
 
 def test_new_mac_of_a_staff_phone_scores_on_every_check():
-    new = Profile(names={"xiaomi-14"}, label="Xiaomi-14", ssids={"Staff"},
+    new = Profile(names={"xiaomi-14"}, label="Xiaomi-14", models={"xiaomi 14"}, ssids={"Staff"},
                   sessions=_workday(6))  # the old MAC went quiet on day 4
     score, checks = compare(new, _staff())
     assert score == 100
     assert {c["check"]: c["ok"] for c in checks} == {
-        "name": True, "handoff": True, "zones": True, "hours": True, "ssid": True}
+        "name": True, "model": True, "handoff": True, "zones": True, "hours": True,
+        "ssid": True}
     assert next(c for c in checks if c["check"] == "handoff")["detail"] == 45.0  # hours
 
 
@@ -43,8 +45,19 @@ def test_too_little_data_is_reported_not_guessed():
     new = Profile(names={"xiaomi-14"}, sessions=[Session("lobby", t, t + timedelta(minutes=20))])
     score, checks = compare(new, _staff())
     by = {c["check"]: c["ok"] for c in checks}
-    assert by == {"name": True, "handoff": True, "zones": None, "hours": None, "ssid": None}
-    assert score == 60
+    assert by == {"name": True, "model": None, "handoff": True, "zones": None, "hours": None,
+                  "ssid": None}
+    assert score == 50 < MIN_SCORE  # a default name alone is not enough
+    new.models = {"xiaomi 14"}
+    assert compare(new, _staff())[0] == 65
+
+
+def test_another_model_counts_against():
+    new = Profile(names={"xiaomi-14"}, models={"galaxy a16"}, ssids={"Staff"},
+                  sessions=_workday(6))
+    score, checks = compare(new, _staff())
+    assert {c["check"]: c["ok"] for c in checks}["model"] is False
+    assert score == 70
 
 
 def test_a_guest_with_the_same_phone_model_is_not_suggested():
@@ -55,13 +68,15 @@ def test_a_guest_with_the_same_phone_model_is_not_suggested():
                     sessions=[Session("room_07", t, t + timedelta(hours=10))])
     score, checks = compare(guest, _staff())
     assert {c["check"]: c["ok"] for c in checks} == {
-        "name": True, "handoff": True, "zones": False, "hours": False, "ssid": False}
-    assert score == 20 < MIN_SCORE
+        "name": True, "model": None, "handoff": True, "zones": False, "hours": False,
+        "ssid": False}
+    assert score == 15 < MIN_SCORE
     assert suggest({NEW_MAC: guest}, {"7": ({"name": "Maid"}, _staff())}) == []
 
 
 def test_suggest_picks_the_best_device_and_skips_ignored_pairs():
-    new = Profile(names={"xiaomi-14"}, label="Xiaomi-14", ssids={"Staff"}, sessions=_workday(6))
+    new = Profile(names={"xiaomi-14"}, label="Xiaomi-14", models={"xiaomi 14"}, ssids={"Staff"},
+                  sessions=_workday(6))
     other = Profile(names={"galaxy"}, ssids={"Staff"},
                     sessions=[s for d in range(5) for s in _workday(d, ("lobby",), start=20)])
     devices = {"7": ({"name": "Maid phone", "category": "employee"}, _staff()),
