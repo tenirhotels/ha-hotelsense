@@ -8,7 +8,8 @@ touch the last day, looks them up and sets each room:
 * a stay checked in and not out -> ``checked_in`` (as of the actual check-in)
 * else the last stay checked out -> ``checked_out`` (as of the actual check-out)
 * no stay in the window -> ``checked_out``, but only when every reservation of
-  the window could be read (an incomplete picture never empties a room)
+  the window could be read (an incomplete picture never empties a room); a
+  reservation looked up in the last 20 minutes is not asked again
 
 The last change wins: a status set by hand after the Exely event is kept
 (``override_manual`` replaces it - for the first sync). A stay still checked
@@ -37,6 +38,7 @@ FIRST_RUN = 180  # seconds after start
 LOOKBACK = timedelta(days=1)
 LOOKAHEAD = timedelta(hours=2)
 OVERDUE_AFTER = timedelta(hours=1)  # past the planned check-out, still checked in
+FRESH = 20 * 60  # a reservation looked up this recently (seconds) is not asked again
 
 
 def exely_time(value: str | None, tz) -> datetime | None:
@@ -59,7 +61,8 @@ class RoomPlan:
     status: str
     booking: str | None = None
     since: datetime | None = None  # when Exely's event happened (UTC); None = no event
-    overdue: bool = False  # checked in past the planned check-out
+    overdue: bool = False  # a stay checked in past its planned check-out
+    overdue_bookings: list[str] = field(default_factory=list)
 
 
 def plan(stays: list[tuple[str, RoomStay]], room_ids, tz, now: datetime, *,
@@ -81,11 +84,14 @@ def plan(stays: list[tuple[str, RoomStay]], room_ids, tz, now: datetime, *,
         if inside:
             booking, stay = max(inside, key=lambda e: exely_time(
                 e[1].actual_check_in or e[1].check_in, tz) or now)
-            planned_out = exely_time(stay.check_out, tz)
+            # Any stay still in past its planned check-out - also an earlier guest
+            # never checked out in the PMS while the next one already is in.
+            overdue = [b for b, s in inside if (out := exely_time(s.check_out, tz)) is not None
+                       and now - out > OVERDUE_AFTER]
             result[room_id] = RoomPlan(
                 room_id, STATUS_CHECKED_IN, booking,
                 exely_time(stay.actual_check_in or stay.check_in, tz),
-                overdue=planned_out is not None and now - planned_out > OVERDUE_AFTER)
+                overdue=bool(overdue), overdue_bookings=overdue)
             continue
         out = [(b, s) for b, s in entries if s.status == STATUS_CHECKED_OUT]
         if out:
@@ -106,6 +112,7 @@ class SyncResult:
     complete: bool = True
     bookings: int = 0
     looked_up: int = 0
+    from_cache: int = 0  # looked up in the last 20 minutes, not asked again
     changes: list[dict] = field(default_factory=list)
     kept_manual: list[dict] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
@@ -152,7 +159,11 @@ class ExelySync:
         result.bookings = len(numbers)
         stays: list[tuple[str, RoomStay]] = []
         for number in numbers:
-            fetched = None
+            fetched = self.api.cached_stays(prop, number, max_age=FRESH)
+            if fetched is not None:
+                result.from_cache += 1
+                stays += [(number, s) for s in fetched]
+                continue
             if self.api.budget() > 0:
                 try:
                     fetched = await self.api.async_reservation(prop, number)
@@ -172,8 +183,8 @@ class ExelySync:
                 result.unresolved.append(name or room_id)
                 continue
             room_name = self.receiver.manager.rooms[area_id].name
-            if room_plan.overdue:
-                result.overdue_checkouts.append({"room": room_name, "booking": room_plan.booking})
+            for booking in room_plan.overdue_bookings:
+                result.overdue_checkouts.append({"room": room_name, "booking": booking})
             self._apply(area_id, room_name, room_plan, result, override_manual)
         self.last = result
         return result
