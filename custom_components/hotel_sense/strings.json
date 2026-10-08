@@ -720,6 +720,20 @@
           "description": "The device it was suggested for."
         }
       }
+    },
+    "omada_client_probe": {
+      "name": "Omada client probe",
+      "description": "Diagnostics: what the Omada controller keeps about one client - per source (known clients, client details, connection history endpoints) the field names and the times (first / last seen ...). Other values are not returned.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "mac": {
+          "name": "MAC address",
+          "description": "The client to look up."
+        }
+      }
     }
   }
 }

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 from aiohttp import CookieJar
@@ -140,6 +141,20 @@ def _epoch(value: Any) -> float | None:
     return number / 1000 if number else None
 
 
+def _times(raw: Mapping[str, Any]) -> dict[str, str]:
+    """The fields of ``raw`` that hold a time (Unix ms or s), as ISO 8601 UTC."""
+    times = {}
+    for key, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        if 1e12 <= value < 4e12:
+            value = value / 1000
+        elif not 1e9 <= value < 4e9:
+            continue
+        times[key] = datetime.fromtimestamp(value, timezone.utc).isoformat(timespec="seconds")
+    return times
+
+
 def known_client_from(raw: Mapping[str, Any]) -> KnownClient | None:
     mac = _mac(raw.get("mac"))
     if mac is None:
@@ -223,6 +238,46 @@ class OmadaHub:
             if (item := known_client_from(raw)) is not None:
                 clients.append(item)
         return clients
+
+    # Endpoints that may hold a client's connection history; which one a
+    # controller version has is not documented, so the probe tries each.
+    PAST_CONNECTION_ENDPOINTS = ("insight/pastConnection", "insight/pastConnections",
+                                 "insight/past-connections", "insight/clients/{mac}/history",
+                                 "clients/{mac}/history")
+
+    async def async_client_probe(self, mac: str) -> dict[str, Any]:
+        """What Omada tells about one client, per source: field names and the times.
+
+        For finding where (and whether) the controller keeps a client's first
+        connection. Values other than times are not returned.
+        """
+        result: dict[str, Any] = {}
+
+        async def source(name: str, coro) -> None:
+            try:
+                raw = await coro
+            except OmadaClientException as err:
+                result[name] = {"ok": False, "error": f"{type(err).__name__}: {err}"[:300]}
+                return
+            items = raw if isinstance(raw, list) else [raw] if raw else []
+            result[name] = {"ok": True, "found": len(items),
+                            "fields": sorted({k for item in items for k in item}),
+                            "times": [_times(item) for item in items[:10]]}
+
+        async def known() -> list[dict]:
+            return [raw async for raw in self._api.iterate_pages(
+                self._api.format_url("insight/clients", self.site_id)) if _mac(raw.get("mac")) == mac]
+
+        async def get(path: str, params: dict | None = None):
+            data = await self._api.request("get", self._api.format_url(path, self.site_id), params)
+            return data.get("data", data) if isinstance(data, dict) and "data" in data else data
+
+        await source("known_clients", known())
+        await source("client_detail", get(f"clients/{mac}"))
+        for path in self.PAST_CONNECTION_ENDPOINTS:
+            await source(path.replace("{mac}", "<mac>"), get(
+                path.format(mac=mac), {"currentPage": 1, "currentPageSize": 10, "searchKey": mac}))
+        return result
 
     # -- client commands ------------------------------------------------------ #
     async def async_reconnect_client(self, mac: str) -> None:
