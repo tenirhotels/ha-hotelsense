@@ -134,3 +134,17 @@ async def test_sync_needs_the_api(hass, make_entry, patch_api):
     with pytest.raises(ServiceValidationError, match="not set up"):
         await hass.services.async_call(DOMAIN, "exely_sync", {}, blocking=True,
                                        return_response=True)
+
+
+async def test_a_dry_run_just_before_costs_no_new_requests(hass, make_entry, patch_api,
+                                                           exely_now, monkeypatch):
+    await _api_hotel(hass, make_entry)
+    controller = hass.data[DOMAIN][next(iter(hass.data[DOMAIN]))]
+    await hass.services.async_call(DOMAIN, "exely_sync", {"dry_run": True}, blocking=True,
+                                   return_response=True)
+    monkeypatch.setattr(controller.exely.api, "budget", lambda reserve=5: 0)  # hour used up
+    result = await hass.services.async_call(DOMAIN, "exely_sync", {"override_manual": True},
+                                            blocking=True, return_response=True)
+    assert (result["complete"], result["looked_up"], result["from_cache"]) == (True, 0, 1)
+    assert _state(hass, "select.room_06_status") == "checked_in"
+    assert _state(hass, "select.room_07_status") == "checked_out"

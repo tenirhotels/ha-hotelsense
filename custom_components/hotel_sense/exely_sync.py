@@ -8,7 +8,8 @@ touch the last day, looks them up and sets each room:
 * a stay checked in and not out -> ``checked_in`` (as of the actual check-in)
 * else the last stay checked out -> ``checked_out`` (as of the actual check-out)
 * no stay in the window -> ``checked_out``, but only when every reservation of
-  the window could be read (an incomplete picture never empties a room)
+  the window could be read (an incomplete picture never empties a room); a
+  reservation looked up in the last 20 minutes is not asked again
 
 The last change wins: a status set by hand after the Exely event is kept
 (``override_manual`` replaces it - for the first sync). A stay still checked
@@ -37,6 +38,7 @@ FIRST_RUN = 180  # seconds after start
 LOOKBACK = timedelta(days=1)
 LOOKAHEAD = timedelta(hours=2)
 OVERDUE_AFTER = timedelta(hours=1)  # past the planned check-out, still checked in
+FRESH = 20 * 60  # a reservation looked up this recently (seconds) is not asked again
 
 
 def exely_time(value: str | None, tz) -> datetime | None:
@@ -106,6 +108,7 @@ class SyncResult:
     complete: bool = True
     bookings: int = 0
     looked_up: int = 0
+    from_cache: int = 0  # looked up in the last 20 minutes, not asked again
     changes: list[dict] = field(default_factory=list)
     kept_manual: list[dict] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
@@ -152,7 +155,11 @@ class ExelySync:
         result.bookings = len(numbers)
         stays: list[tuple[str, RoomStay]] = []
         for number in numbers:
-            fetched = None
+            fetched = self.api.cached_stays(prop, number, max_age=FRESH)
+            if fetched is not None:
+                result.from_cache += 1
+                stays += [(number, s) for s in fetched]
+                continue
             if self.api.budget() > 0:
                 try:
                     fetched = await self.api.async_reservation(prop, number)

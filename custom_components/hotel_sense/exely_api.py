@@ -403,9 +403,11 @@ class ExelyApi:
         """The booking changed (other webhook event): look it up again next time."""
         self._bookings.pop((property_id, number), None)
 
-    def cached_stays(self, property_id: str, number: str) -> list[RoomStay] | None:
+    def cached_stays(self, property_id: str, number: str,
+                     max_age: float = BOOKING_CACHE_SECONDS) -> list[RoomStay] | None:
+        """Stays of a reservation looked up less than ``max_age`` seconds ago."""
         cached = self._bookings.get((property_id, number))
-        if cached and self._clock() - cached[1] < BOOKING_CACHE_SECONDS:
+        if cached and self._clock() - cached[1] < max_age:
             return cached[0]
         return None
 
