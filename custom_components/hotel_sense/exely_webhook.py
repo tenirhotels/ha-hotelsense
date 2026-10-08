@@ -33,7 +33,7 @@ from .const import (
     CONF_EXELY_API_KEY, CONF_EXELY_CLIENT_ID, CONF_EXELY_CLIENT_SECRET, CONF_EXELY_PROPERTY_ID,
     CONF_EXELY_WEBHOOK_ID, DOMAIN, EVENT_EXELY, STATUS_SOURCE_EXELY,
 )
-from .exely import ExelyEvent, parse_event, room_number
+from .exely import ExelyEvent, label_number, parse_event, room_number
 from .exely_api import STAY_CANCELLED, ExelyApi, ExelyApiError, RoomStay
 from .exely_sync import ExelySync
 
@@ -265,8 +265,9 @@ class ExelyReceiver:
         area = areas.async_get_area(label) or areas.async_get_area_by_name(label)
         if area and area.id in rooms:
             return area.id
-        # 5. Room number, last resort (only when exactly one room has it).
-        number = room_number(label)
+        # 5. Room number, last resort: a label that is a number ("01", "Room 1"),
+        #    matched only when exactly one room has it ("V1" is another room).
+        number = label_number(label)
         if number is None:
             return None
         matches = [a for a, r in rooms.items()

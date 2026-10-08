@@ -158,3 +158,47 @@ async def test_a_dry_run_just_before_costs_no_new_requests(hass, make_entry, pat
     assert (result["complete"], result["looked_up"], result["from_cache"]) == (True, 0, 1)
     assert _state(hass, "select.room_06_status") == "checked_in"
     assert _state(hass, "select.room_07_status") == "checked_out"
+
+
+
+async def test_a_villa_never_empties_a_room_by_its_digit(hass, make_entry, patch_api,
+                                                         exely):  # noqa: F811
+    """Production: Exely room "V1" (a villa, no bookings) was matched to Room 01 by the
+    digit and emptied it right after Room 01's guest had been set checked in.
+    Here: villa "V6" next to Room 06 with a guest."""
+    from .test_exely_api import ROOMS
+    rooms = {"rooms": [*ROOMS["rooms"], {"id": "900099", "name": "V6", "roomTypeId": "2"}],
+             "hasNextPage": False}
+    exely.clear_requests()
+    exely.post(f"{PMS_URL.rsplit('/api', 1)[0]}/auth/token",
+               json={"access_token": "jwt", "expires_in": 900})
+    exely.get(ROOMS_URL, json=rooms)
+    exely.get(SEARCH_URL, json={"reservations": [{"number": "B-06"}], "hasNextPage": False})
+    exely.get(_booking_url("B-06"), json=_reservation_json(
+        "B-06", ROOM_06, "CheckedIn", actual_in=_local(timedelta(hours=-1))))
+    await _api_hotel(hass, make_entry)
+    result = await hass.services.async_call(DOMAIN, "exely_sync", {"override_manual": True},
+                                            blocking=True, return_response=True)
+    assert result["unresolved"] == ["V6"]
+    assert _state(hass, "select.room_06_status") == "checked_in"
+
+
+async def test_two_exely_rooms_on_one_room_occupied_wins(hass, make_entry, patch_api,
+                                                         exely):  # noqa: F811
+    from .test_exely_api import ROOMS
+    rooms = {"rooms": [*ROOMS["rooms"], {"id": "900099", "name": "Annex", "roomTypeId": "2"}],
+             "hasNextPage": False}
+    exely.clear_requests()
+    exely.post(f"{PMS_URL.rsplit('/api', 1)[0]}/auth/token",
+               json={"access_token": "jwt", "expires_in": 900})
+    exely.get(ROOMS_URL, json=rooms)
+    exely.get(SEARCH_URL, json={"reservations": [{"number": "B-06"}], "hasNextPage": False})
+    exely.get(_booking_url("B-06"), json=_reservation_json(
+        "B-06", ROOM_06, "CheckedIn", actual_in=_local(timedelta(hours=-1))))
+    entry = await _api_hotel(hass, make_entry)
+    registry = hass.data[DOMAIN][entry.entry_id].presence.registry
+    registry.import_csv('room_06;;06;room;"900006,900099";')  # a mapping mistake
+    result = await hass.services.async_call(DOMAIN, "exely_sync", {"override_manual": True},
+                                            blocking=True, return_response=True)
+    assert result["conflicts"] == [{"room": "Room 06", "exely_rooms": ["06", "Annex"]}]
+    assert _state(hass, "select.room_06_status") == "checked_in"

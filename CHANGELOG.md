@@ -1,3 +1,7 @@
+# Hotel Sense 0.15.2
+- Fix: an Exely room whose name carries a digit but is another room ("V1", a villa) was matched to Room 01 by the room-number fallback; the sync then emptied Room 01 right after setting it checked in. The number fallback now takes only labels that are a room number ("1", "01", "Room 1", "Номер 1", "№1", "Apartment 6"); "V1" stays unresolved (shown in the sync result)
+- Exely sync: several Exely rooms on one hotel room (a mapping to check) - occupied wins, never emptied by the other room; shown as `conflicts`
+
 # Hotel Sense 0.15.1
 - Fix: Exely `webpms:change_check_in_datetime` / `change_check_out_datetime` (a change of the planned dates) were read as a check-in / check-out and set the room; they are no status events now (the booking is looked up afresh next time)
 - Overdue check-outs: every stay still checked in past its planned check-out is reported - also an earlier guest never checked out in the PMS while the next guest is already in the room

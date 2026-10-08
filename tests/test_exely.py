@@ -321,3 +321,14 @@ async def test_room_mapping_can_be_cleared(hass, make_entry, patch_api):
     assert registry.get("room_07").exely_room_ids == ["101"]
     result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     assert result["type"] == "create_entry" and registry.get("room_07").exely_room_ids == []
+
+
+
+@pytest.mark.parametrize(("label", "number"), [
+    ("1", 1), ("01", 1), ("Room 1", 1), ("room01", 1), ("№ 7", 7), ("Номер 7", 7),
+    ("Apartment 6", 6), ("#10", 10),
+    ("V1", None), ("A-12", None), ("Suite 3B", None), ("Villa 1", None), ("", None), (None, None),
+])
+def test_label_number_only_for_labels_that_are_a_room_number(label, number):
+    from custom_components.hotel_sense.exely import label_number
+    assert label_number(label) == number
