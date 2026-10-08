@@ -1,3 +1,8 @@
+# Hotel Sense 0.15.0
+- Exely status sync: every two hours (and 3 minutes after start) the active reservations with a stay in the last day are looked up and every room set - checked in and not out → `checked_in`, else last checked out → `checked_out`, no stay → `checked_out` only when every reservation could be read. A status set by hand after the Exely event is kept (last change wins). Stays the request budget (5 kept for webhooks)
+- Overdue check-outs (still checked in an hour past the planned check-out) on the *Exely API* sensor (`overdue_checkouts`, with `last_sync`)
+- Action `hotel_sense.exely_sync` (`dry_run`, `override_manual`)
+
 # Hotel Sense 0.14.0
 - MAC registry in the history database (`macs`, view `v1_macs`; schema 5): every Wi-Fi MAC with first / last seen, time on the Wi-Fi, networks used, Omada's vendor / model / OS, name and the device it belongs to. Written every 5 minutes; rows follow the retention
 - *Keep guests' device names* (Configure → History database, days; default 90, 0 = never stored): names of devices not on the list are cleared that long after they were last seen

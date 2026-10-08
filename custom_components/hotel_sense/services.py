@@ -1,6 +1,7 @@
 """Hotel Sense services: AP -> Area diagnostics/assignment, device list CSV."""
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import timedelta
 
 import voluptuous as vol
@@ -44,6 +45,7 @@ SERVICE_UNLINK_MAC = "unlink_mac"
 SERVICE_DEVICE_SUGGESTIONS = "device_suggestions"
 SERVICE_IGNORE_SUGGESTION = "ignore_device_suggestion"
 SERVICE_OMADA_CLIENT_PROBE = "omada_client_probe"
+SERVICE_EXELY_SYNC = "exely_sync"
 ATTR_BOOKING = "booking"
 ATTR_ROOM = "room"
 ATTR_START = "start"
@@ -56,6 +58,8 @@ ATTR_MIN_HOURS = "min_hours"
 ATTR_SEEN_DAYS = "seen_days"
 ATTR_WIRED = "wired"
 ATTR_REFRESH = "refresh"
+ATTR_OVERRIDE_MANUAL = "override_manual"
+ATTR_DRY_RUN = "dry_run"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MAPPING = "mapping"
@@ -294,6 +298,14 @@ def async_register_services(hass: HomeAssistant) -> None:
             raise ServiceValidationError(str(err)) from err
         await manager.async_ignore(_mac(call), identity)
 
+    async def exely_sync(call: ServiceCall) -> ServiceResponse:
+        receiver = _controller(hass, call).exely
+        if not receiver.api.configured or not receiver.property_id:
+            raise ServiceValidationError("Exely API is not set up (Hotel Sense options)")
+        result = await receiver.sync.async_sync(
+            override_manual=call.data[ATTR_OVERRIDE_MANUAL], dry_run=call.data[ATTR_DRY_RUN])
+        return asdict(result)
+
     async def omada_client_probe(call: ServiceCall) -> ServiceResponse:
         controller = _controller(hass, call)
         mac = _mac(call)
@@ -363,6 +375,12 @@ def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_DEVICE_SUGGESTIONS, device_suggestions,
         schema=vol.Schema({**entry_field, vol.Optional(ATTR_REFRESH, default=True): cv.boolean}),
+        supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        DOMAIN, SERVICE_EXELY_SYNC, exely_sync,
+        schema=vol.Schema({**entry_field,
+                           vol.Optional(ATTR_OVERRIDE_MANUAL, default=False): cv.boolean,
+                           vol.Optional(ATTR_DRY_RUN, default=False): cv.boolean}),
         supports_response=SupportsResponse.ONLY)
     hass.services.async_register(
         DOMAIN, SERVICE_OMADA_CLIENT_PROBE, omada_client_probe,

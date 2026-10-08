@@ -309,3 +309,17 @@ omada_client_probe:
       example: "AA-BB-CC-DD-EE-FF"
       selector:
         text:
+exely_sync:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    dry_run:
+      default: false
+      selector:
+        boolean:
+    override_manual:
+      default: false
+      selector:
+        boolean:

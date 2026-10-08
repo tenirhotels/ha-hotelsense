@@ -114,8 +114,12 @@ class ExelyApiSensor(_ServiceEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         api = self.controller.exely.api
+        sync = self.controller.exely.sync.last
         return {"last_error": api.last_error, "rooms_error": api.rooms_error,
-                "last_check": api.last_check, "requests_last_hour": api.requests_last_hour()}
+                "last_check": api.last_check, "requests_last_hour": api.requests_last_hour(),
+                "last_sync": sync.time if sync else None,
+                "last_sync_ok": sync.ok if sync else None,
+                "overdue_checkouts": sync.overdue_checkouts if sync else []}
 
 
 class DeviceSuggestionsSensor(_ServiceEntity, SensorEntity):

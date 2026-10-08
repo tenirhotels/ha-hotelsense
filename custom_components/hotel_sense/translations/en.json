@@ -739,6 +739,24 @@
           "description": "The client to look up."
         }
       }
+    },
+    "exely_sync": {
+      "name": "Sync statuses from Exely",
+      "description": "Set every room's status from Exely now: active reservations with a stay in the last day, looked up one by one. A status set by hand after the Exely event is kept unless override_manual. Runs by itself every two hours.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hotel Sense entry",
+          "description": "Only needed with several Hotel Sense entries."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Only show what would change."
+        },
+        "override_manual": {
+          "name": "Replace manual statuses",
+          "description": "Also replace statuses set by hand (once, to clear workarounds)."
+        }
+      }
     }
   }
 }

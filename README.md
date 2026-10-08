@@ -155,7 +155,8 @@ from the API connection in Exely, read access to reservations and rooms) and
 the property ID. Saving checks them with one room-list request. The secret is
 stored in Home Assistant only and redacted in diagnostics.
 
-Requests are kept to a minimum, Exely is only called when a webhook needs a room:
+Requests are kept to a minimum: Exely is called when a webhook needs a room, and
+by the status sync (below):
 
 * reservation by number: one request per booking, cached for the stay (a
   single-room booking costs one request for check-in and check-out; a changed
@@ -173,6 +174,22 @@ unmatched event shows the `roomId`). For a booking with several rooms, only the 
 shows with the event's status change. If the API fails, the event shows
 `api_error`. Only room stay IDs, statuses and dates are used; diagnostics show
 the response *structure* without values, plus request counters.
+
+**Status sync.** Webhooks change a status when something happens; a missed
+webhook or a status set by hand leaves a room wrong until the next event. Every
+two hours (and 3 minutes after start) Hotel Sense asks Exely for the active
+reservations with a stay in the last day, looks each one up and sets every
+room: a stay checked in and not out → `checked_in` (source `exely`, with the
+booking); else the last stay checked out → `checked_out`; no stay → `checked_out`,
+but only when every reservation could be read (a partial picture never empties
+a room). The last change wins: a status set by hand after the Exely event is
+kept. About 2 + one request per current booking, within the 30 an hour (5 are
+kept for webhooks). A stay still checked in more than an hour past its planned
+check-out is reported (`overdue_checkouts` on the *Exely API* sensor).
+
+`hotel_sense.exely_sync`: run it now - `dry_run: true` shows what would change,
+`override_manual: true` replaces statuses set by hand (use it once, to clear
+manual workarounds from before the API worked).
 
 ### Room model (Configure → Rooms)
 
