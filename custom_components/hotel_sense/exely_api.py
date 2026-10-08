@@ -434,6 +434,30 @@ class ExelyApi:
         finally:
             self._inflight.pop(key, None)
 
+    def budget(self, reserve: int = 5) -> int:
+        """Requests left this hour, keeping ``reserve`` for webhook lookups."""
+        return max(HOURLY_LIMIT - self.requests_last_hour() - reserve, 0)
+
+    async def async_search_reservations(self, property_id: str, start: str, end: str,
+                                        max_pages: int = 5) -> list[str]:
+        """Numbers of the active reservations with a stay between ``start`` and ``end``
+        (Exely local time, ``yyyy-MM-ddTHH:mm``)."""
+        numbers: list[str] = []
+        token = None
+        for _ in range(max_pages):
+            params = {"state": "Active", "startAffectPeriodDateTime": start,
+                      "endAffectPeriodDateTime": end, "maxPageSize": 100}
+            if token:
+                params["pageToken"] = token
+            data = await self._get(f"/v2/properties/{property_id}/reservations/search", params)
+            for item in (data or {}).get("reservations") or []:
+                if isinstance(item, Mapping) and (number := _str(item.get("number"))):
+                    numbers.append(number)
+            token = (data or {}).get("nextPageToken")
+            if not (data or {}).get("hasNextPage") or not token:
+                break
+        return list(dict.fromkeys(numbers))
+
     async def async_check(self, property_id: str) -> int | None:
         """Connection test for the options: token, then the room list.
 

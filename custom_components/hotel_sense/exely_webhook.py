@@ -35,6 +35,7 @@ from .const import (
 )
 from .exely import ExelyEvent, parse_event, room_number
 from .exely_api import STAY_CANCELLED, ExelyApi, ExelyApiError, RoomStay
+from .exely_sync import ExelySync
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class ExelyReceiver:
         self.last: dict | None = None
         self._registered_id: str | None = None
         self.api = ExelyApi(hass, self._credentials)
+        self.sync = ExelySync(hass, self)
         self._seen: deque[str] = deque(maxlen=SEEN_EVENTS)
         self.duplicates = 0
 
@@ -116,6 +118,7 @@ class ExelyReceiver:
     def async_start(self) -> None:
         self._register()
         self.entry.async_on_unload(self._unregister)
+        self.sync.async_start(self.entry)
 
     @callback
     def _register(self) -> None:
