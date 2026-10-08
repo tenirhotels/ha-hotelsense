@@ -132,3 +132,19 @@ def room_number(value: str) -> int | None:
     """Trailing number of a room label: "Room 01" / "01" / "№1" -> 1."""
     match = re.search(r"(\d+)\s*$", value or "")
     return int(match.group(1)) if match else None
+
+
+_LABEL_NUMBER = re.compile(
+    r"^\s*(?:(?:room|apartment|apt\.?|номер|комната|апартаменты?|no\.?|№|#)\s*)?0*(\d+)\s*$",
+    re.IGNORECASE)
+
+
+def label_number(value: str | None) -> int | None:
+    """The number of a label that *is* a room number: "1", "01", "Room 1", "№ 1",
+    "Apartment 6".
+
+    Stricter than ``room_number``: "V1" (a villa), "A-12" or "Suite 3B" carry
+    a number but are other rooms, and must never be taken for Room 01.
+    """
+    match = _LABEL_NUMBER.match(value or "")
+    return int(match.group(1)) if match else None

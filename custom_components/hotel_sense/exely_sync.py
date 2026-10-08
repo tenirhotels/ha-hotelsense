@@ -116,6 +116,7 @@ class SyncResult:
     changes: list[dict] = field(default_factory=list)
     kept_manual: list[dict] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
+    conflicts: list[dict] = field(default_factory=list)  # several Exely rooms -> one room
     overdue_checkouts: list[dict] = field(default_factory=list)
     dry_run: bool = False
 
@@ -175,6 +176,7 @@ class ExelySync:
                 fetched = self.api.cached_stays(prop, number) or []
             stays += [(number, s) for s in fetched]
         plans = plan(stays, rooms, tz, now, complete=result.complete)
+        by_area: dict[str, list[tuple[str, RoomPlan]]] = {}
         for room_id, room_plan in sorted(plans.items()):
             name = rooms.get(room_id)
             area_id = next((a for a in (self.receiver.resolve_room(lbl) for lbl in
@@ -182,9 +184,19 @@ class ExelySync:
             if area_id is None:
                 result.unresolved.append(name or room_id)
                 continue
+            by_area.setdefault(area_id, []).append((name or room_id, room_plan))
+        for area_id, entries in by_area.items():
             room_name = self.receiver.manager.rooms[area_id].name
-            for booking in room_plan.overdue_bookings:
-                result.overdue_checkouts.append({"room": room_name, "booking": booking})
+            if len(entries) > 1:
+                # Several Exely rooms on one hotel room (a mapping to check):
+                # occupied wins - a room is never emptied by another room's plan.
+                result.conflicts.append({"room": room_name,
+                                         "exely_rooms": [label for label, _ in entries]})
+            room_plan = next((p for _, p in entries if p.status == STATUS_CHECKED_IN),
+                             entries[0][1])
+            for _, other in entries:
+                for booking in other.overdue_bookings:
+                    result.overdue_checkouts.append({"room": room_name, "booking": booking})
             self._apply(area_id, room_name, room_plan, result, override_manual)
         self.last = result
         return result
