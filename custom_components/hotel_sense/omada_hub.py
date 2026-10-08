@@ -64,6 +64,9 @@ class ConnectedClient:
     ssid: str | None = None
     rssi: int | None = None
     power_save: bool | None = None
+    vendor: str | None = None  # Omada's fingerprint of the device, if any
+    model: str | None = None
+    os: str | None = None
     raw: Mapping[str, Any] = field(default_factory=dict, compare=False, repr=False)
 
 
@@ -118,6 +121,18 @@ def access_point_from(raw: Mapping[str, Any]) -> AccessPoint | None:
     )
 
 
+_UNKNOWN = {"", "-", "unknown", "others", "none", "null"}
+
+
+def _text(raw: Mapping[str, Any], *keys: str) -> str | None:
+    """The first meaningful value of ``keys`` ("Unknown", "-" ... are none)."""
+    for key in keys:
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip().casefold() not in _UNKNOWN:
+            return value.strip()[:64]
+    return None
+
+
 def client_from(raw: Mapping[str, Any]) -> ConnectedClient | None:
     mac = _mac(raw.get("mac"))
     if mac is None:
@@ -131,6 +146,9 @@ def client_from(raw: Mapping[str, Any]) -> ConnectedClient | None:
         ssid=raw.get("ssid") if wireless else None,
         rssi=_int(raw.get("rssi")) if wireless else None,
         power_save=raw.get("powerSave") if wireless else None,
+        vendor=_text(raw, "vendor", "manufacturer"),
+        model=_text(raw, "model", "deviceModel"),
+        os=_text(raw, "osName", "os"),
         raw=dict(raw),
     )
 

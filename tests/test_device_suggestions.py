@@ -67,6 +67,10 @@ async def _staff_phone_changed_mac(hass, db_url):  # noqa: F811
     with engine.begin() as conn:
         conn.execute(insert(history.presence_sessions), [
             _session(OLD_MAC, "room_06", now - timedelta(days=d, hours=6), 3) for d in (2, 3, 4)])
+        # The phone used the same Wi-Fi network (the fake clients are on "Guest").
+        conn.execute(insert(history.wifi_events), [
+            {"ts": now - timedelta(days=3), "event": "connected", "client_mac": OLD_MAC,
+             "ssid": "Guest"}])
     engine.dispose()
 
 

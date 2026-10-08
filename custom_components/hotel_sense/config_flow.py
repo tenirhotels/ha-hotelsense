@@ -42,6 +42,8 @@ from .const import (
     CONF_DB_PASSWORD,
     CONF_DB_PORT,
     CONF_DB_RETENTION,
+    CONF_GUEST_NAME_DAYS,
+    CONF_SSID_ROLES,
     CONF_DB_USERNAME,
     DB_KEYS,
     DEFAULT_DB_HOST,
@@ -70,6 +72,7 @@ from .exely import parse_room_map
 from .exely_api import ExelyApiError, ExelyAuthError, ExelyNotFound
 from . import history
 from .device_list import CATEGORIES, CATEGORY_FIXED, KnownDevice
+from .ssid_roles import SsidRoles
 from .storage import async_get_device_store
 
 LOGGER = logging.getLogger(__name__)
@@ -88,6 +91,7 @@ SUGGESTIONS_PER_PAGE = 8
 
 _CHECK_LABELS = {
     "name": ("same name", "то же имя"),
+    "model": ("same model", "та же модель"),
     "handoff": ("old MAC went quiet before", "старый MAC замолчал до появления"),
     "zones": ("same zones", "те же зоны"),
     "hours": ("same working hours", "те же часы работы"),
@@ -302,10 +306,17 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
     # ------------------------------------------------------------------ #
     async def async_step_presence(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         manager = self.controller.presence
+        errors: dict[str, str] = {}
         if user_input is not None:
+            try:
+                SsidRoles.parse(user_input.get(CONF_SSID_ROLES))
+            except ValueError:
+                errors[CONF_SSID_ROLES] = "invalid_ssid_roles"
+        if user_input is not None and not errors:
             # Room kinds live in the room model; the other values are options.
             common = set(user_input.pop(CONF_COMMON_AREAS, []) or [])
             self.options.update(user_input)
+            self.options[CONF_SSID_ROLES] = user_input.get(CONF_SSID_ROLES, "")  # cleared = none
             if manager.registry.set_kinds(common):
                 # Rooms and common areas expose different entities: rebuild them.
                 self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
@@ -323,6 +334,7 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="presence",
+            errors=errors,
             data_schema=vol.Schema({
                 vol.Optional(
                     CONF_PRESENCE_TIMEOUT,
@@ -347,6 +359,10 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_COMMON_AREAS, default=common_default): SelectSelector(
                     SelectSelectorConfig(options=area_options, multiple=True,
                                          mode=SelectSelectorMode.LIST)),
+                # Wi-Fi network roles (hints only): "GUEST{n} = guest_room" per line.
+                vol.Optional(CONF_SSID_ROLES, description={
+                    "suggested_value": (user_input or self.options).get(CONF_SSID_ROLES, "")}):
+                    TextSelector(TextSelectorConfig(multiline=True)),
             }),
         )
 
@@ -668,6 +684,8 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
             username = (user_input.get(CONF_DB_USERNAME) or "").strip()
             self.options[CONF_DB_RETENTION] = int(user_input.get(
                 CONF_DB_RETENTION, history.DEFAULT_RETENTION_MONTHS))
+            self.options[CONF_GUEST_NAME_DAYS] = int(user_input.get(
+                CONF_GUEST_NAME_DAYS, history.DEFAULT_GUEST_NAME_DAYS))
             data = {k: v for k, v in entry.data.items() if k not in DB_KEYS}
             if not username:  # cleared: history off
                 self.hass.config_entries.async_update_entry(entry, data=data)
@@ -716,6 +734,12 @@ class HotelSenseOptionsFlow(config_entries.OptionsFlow):
                     NumberSelector(NumberSelectorConfig(min=1, max=120,
                                                         mode=NumberSelectorMode.BOX,
                                                         unit_of_measurement="months")),
+                # Names guests' phones give often carry a person's name.
+                vol.Optional(CONF_GUEST_NAME_DAYS, default=int(self.options.get(
+                    CONF_GUEST_NAME_DAYS, history.DEFAULT_GUEST_NAME_DAYS))):
+                    NumberSelector(NumberSelectorConfig(min=0, max=3650,
+                                                        mode=NumberSelectorMode.BOX,
+                                                        unit_of_measurement="days")),
             }),
             description_placeholders={
                 "status": self._database_status(),

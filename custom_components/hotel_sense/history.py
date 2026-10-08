@@ -23,6 +23,8 @@ Tables (schema version 3):
 ``room_traffic``       Wi-Fi traffic per room, device category and hour
 ``rooms``              the room model: number, name, kind (replaced when it changes)
 ``devices``            the device list: identity, MAC, name, category (replaced when it changes)
+``macs``               every MAC seen: first / last seen, time on the Wi-Fi, networks, vendor /
+                       model / OS, name (guests' names kept a set number of days)
 
 Read through the ``v1_*`` views (``views.py``), the stable interface.
 """
@@ -39,7 +41,7 @@ from homeassistant.helpers.event import async_track_time_change, async_track_tim
 from homeassistant.util import dt as dt_util
 from sqlalchemy import (
     BigInteger, Boolean, Column, DateTime, Float, Integer, MetaData, String, Table, create_engine,
-    delete, func, insert, select,
+    delete, func, insert, select, update,
 )
 from sqlalchemy.engine import URL, Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -48,7 +50,7 @@ from .views import create_views
 
 LOGGER = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 4  # 2: room_traffic, 3: rooms + views v1, 4: devices
+SCHEMA_VERSION = 5  # 2: room_traffic, 3: rooms + views v1, 4: devices, 5: macs
 DRIVER = "mysql+pymysql"
 FLUSH_INTERVAL = timedelta(seconds=15)
 BATCH_SIZE = 200
@@ -158,12 +160,63 @@ devices = Table(
     Column("updated", DateTime, nullable=False),
     **_TABLE_ARGS,
 )
+# Every Wi-Fi MAC seen, one row each, merged on write (add_macs). Names of MACs
+# that are not on the device list are cleared after ``guest_name_days``.
+macs = Table(
+    "macs", metadata,
+    Column("mac", String(17), primary_key=True),
+    Column("first_seen", DateTime, nullable=False),
+    Column("last_seen", DateTime, nullable=False, index=True),
+    Column("seconds", BigInteger, nullable=False),  # time on the Wi-Fi seen by Hotel Sense
+    Column("random", Boolean, nullable=False),
+    Column("name", String(128)),
+    Column("vendor", String(64)),
+    Column("model", String(64)),
+    Column("os", String(64)),
+    Column("ssids", String(255)),  # networks used, comma separated
+    Column("identity_id", String(32), index=True),  # device on the list, if any
+    Column("updated", DateTime, nullable=False),
+    **_TABLE_ARGS,
+)
+MAC_TEXT = ("name", "vendor", "model", "os")
+DEFAULT_GUEST_NAME_DAYS = 90
 # Tables written as a whole snapshot (set_rooms / set_devices).
 SNAPSHOTS = {"rooms": rooms, "devices": devices}
 TABLES = {t.name: t for t in (wifi_events, presence_sessions, room_states, room_status,
                               pms_events, room_traffic)}
 # Column that ages a row out.
 _AGE_COLUMN = {"presence_sessions": "ended"}
+
+
+def merge_mac(old: dict | None, new: dict | None) -> dict:
+    """Combine two registry records of one MAC (stored and new, or two updates).
+
+    Earliest first seen, latest last seen, time added up, networks joined;
+    for text fields and the device the newer record wins where it has a value.
+    ``ssids`` is a set here (a comma separated string in the table).
+    """
+    if not old:
+        return dict(new or {}, ssids=_ssid_set((new or {}).get("ssids")))
+    if not new:
+        return dict(old, ssids=_ssid_set(old.get("ssids")))
+    result = dict(old)
+    result["first_seen"] = min(old["first_seen"], new["first_seen"])
+    result["last_seen"] = max(old["last_seen"], new["last_seen"])
+    result["seconds"] = int(old.get("seconds") or 0) + int(new.get("seconds") or 0)
+    result["random"] = new.get("random", old.get("random"))
+    result["ssids"] = _ssid_set(old.get("ssids")) | _ssid_set(new.get("ssids"))
+    for key in MAC_TEXT:
+        if new.get(key):
+            result[key] = new[key]
+    if "identity_id" in new:
+        result["identity_id"] = new["identity_id"]
+    return result
+
+
+def _ssid_set(value) -> set[str]:
+    if not value:
+        return set()
+    return set(value.split(",")) if isinstance(value, str) else set(value)
 
 
 class HistoryUnavailable(Exception):
@@ -229,6 +282,8 @@ class HistoryWriter:
         self._engine: Engine | None = None
         self._queue: deque[tuple[str, dict]] = deque()
         self._snapshots: dict[str, list[dict]] = {}  # table -> snapshot to write
+        self._macs: dict[str, dict] = {}  # mac -> registry update to write
+        self.guest_name_days = DEFAULT_GUEST_NAME_DAYS
         self._lock = asyncio.Lock()  # one flush / purge at a time
         self._unsubs: list[CALLBACK_TYPE] = []
         self.connected = False
@@ -295,6 +350,12 @@ class HistoryWriter:
         self._snapshots["devices"] = device_rows
 
     @callback
+    def add_macs(self, rows: list[dict]) -> None:
+        """Registry updates (see ``merge_mac``), written with the next flush."""
+        for row in rows:
+            self._macs[row["mac"]] = merge_mac(self._macs.get(row["mac"]), row)
+
+    @callback
     def add(self, table: str, **row: Any) -> None:
         """Queue one row (``ts`` defaults to now)."""
         if table not in TABLES:
@@ -314,13 +375,17 @@ class HistoryWriter:
     async def async_flush(self) -> None:
         """Write the queue (waits for a flush already running)."""
         async with self._lock:
-            if (not self._queue and not self._snapshots) or not await self._async_connect():
+            if (not self._queue and not self._snapshots and not self._macs) \
+                    or not await self._async_connect():
                 return
             batch = list(self._queue)
             snapshots = dict(self._snapshots)
+            mac_rows, self._macs = self._macs, {}
             try:
-                await self.hass.async_add_executor_job(self._write, batch, snapshots)
+                await self.hass.async_add_executor_job(self._write, batch, snapshots, mac_rows)
             except Exception as err:  # noqa: BLE001 - kept queued, retried next time
+                for row in mac_rows.values():  # back in front of what came meanwhile
+                    self._macs[row["mac"]] = merge_mac(row, self._macs.get(row["mac"]))
                 self._failed(err)
                 await self._async_reset()
                 return
@@ -356,7 +421,8 @@ class HistoryWriter:
             await self.hass.async_add_executor_job(engine.dispose)
 
     def _write(self, batch: list[tuple[str, dict]],
-               snapshots: dict[str, list[dict]] | None = None) -> None:
+               snapshots: dict[str, list[dict]] | None = None,
+               mac_rows: dict[str, dict] | None = None) -> None:
         grouped: dict[str, list[dict]] = {}
         for table, row in batch:
             grouped.setdefault(table, []).append(row)
@@ -369,6 +435,28 @@ class HistoryWriter:
                 if rows:
                     stamp = now()
                     conn.execute(insert(SNAPSHOTS[table]), [dict(r, updated=stamp) for r in rows])
+            if mac_rows:
+                self._write_macs(conn, list(mac_rows.values()))
+
+    def _write_macs(self, conn, rows: list[dict]) -> None:
+        stamp = now()
+        for i in range(0, len(rows), 500):
+            chunk = {r["mac"]: r for r in rows[i:i + 500]}
+            stored = {r.mac: dict(r._mapping) for r in conn.execute(
+                select(macs).where(macs.c.mac.in_(list(chunk))))}
+            new, changed = [], []
+            for mac, row in chunk.items():
+                merged = merge_mac(stored.get(mac), row)
+                if not merged.get("identity_id") and not self.guest_name_days:
+                    merged["name"] = None  # guests' names not kept at all
+                record = {c: merged.get(c) for c in macs.c.keys()} | {"updated": stamp}
+                record["ssids"] = ",".join(sorted(merged.get("ssids") or ()))[:255] or None
+                record["seconds"] = int(merged.get("seconds") or 0)
+                (changed if mac in stored else new).append(record)
+            if new:
+                conn.execute(insert(macs), new)
+            for record in changed:
+                conn.execute(update(macs).where(macs.c.mac == record["mac"]).values(**record))
 
     # -- retention ------------------------------------------------------------ #
     async def _async_purge_timer(self, _now=None) -> None:
@@ -407,6 +495,13 @@ class HistoryWriter:
                 removed += len(ids)
                 if len(ids) < PURGE_BATCH:
                     break
+        with self._engine.begin() as conn:
+            removed += conn.execute(delete(macs).where(macs.c.last_seen < cutoff)).rowcount or 0
+            if self.guest_name_days:
+                conn.execute(update(macs).where(
+                    macs.c.identity_id.is_(None), macs.c.name.is_not(None),
+                    macs.c.last_seen < now() - timedelta(days=self.guest_name_days)
+                ).values(name=None))
         return removed
 
     @property
@@ -421,6 +516,8 @@ class HistoryWriter:
             "dropped": self.dropped,
             "purged": self.purged,
             "retention_months": self.retention_months,
+            "guest_name_days": self.guest_name_days,
+            "macs_queued": len(self._macs),
             "last_write": self.last_write,
             "last_purge": self.last_purge,
             "last_error": self.last_error,

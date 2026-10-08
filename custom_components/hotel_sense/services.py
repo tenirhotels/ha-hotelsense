@@ -326,7 +326,8 @@ def async_register_services(hass: HomeAssistant) -> None:
         known = {d.mac for d in (await async_get_device_store(hass)).devices}
         return await _read(controller, lambda conn: device_candidates(
             conn, start, end, known, min_days=call.data[ATTR_MIN_DAYS],
-            min_rooms_per_day=call.data[ATTR_MIN_ROOMS_PER_DAY]))
+            min_rooms_per_day=call.data[ATTR_MIN_ROOMS_PER_DAY],
+            roles=controller.presence.ssid_roles))
 
     async def omada_known_devices(call: ServiceCall) -> ServiceResponse:
         controller = _controller(hass, call)

@@ -9,12 +9,12 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_COMMON_AREAS, CONF_DB_HOST, CONF_DB_NAME, CONF_EXELY_ROOM_MAP, CONF_DB_PASSWORD, CONF_DB_PORT, CONF_DB_RETENTION,
-    CONF_DB_USERNAME, DEFAULT_DB_PORT, DOMAIN, LEGACY_OPTIONS, PLATFORMS,
+    CONF_DB_USERNAME, CONF_GUEST_NAME_DAYS, DEFAULT_DB_PORT, DOMAIN, LEGACY_OPTIONS, PLATFORMS,
 )
 from .controller import OmadaController
 from .exely import parse_room_map
 from .rooms import RoomRegistry
-from .history import DEFAULT_RETENTION_MONTHS, HistoryWriter, build_url
+from .history import DEFAULT_GUEST_NAME_DAYS, DEFAULT_RETENTION_MONTHS, HistoryWriter, build_url
 from .exely_webhook import ExelyReceiver, async_ensure_secrets
 from .omada_webhook import OmadaWebhook, async_ensure_omada_secrets
 from .presence_manager import PresenceManager
@@ -94,8 +94,10 @@ def history_writer(hass: HomeAssistant, entry: ConfigEntry) -> HistoryWriter | N
         return None
     url = build_url(data[CONF_DB_HOST], data.get(CONF_DB_PORT) or DEFAULT_DB_PORT,
                     data[CONF_DB_USERNAME], data.get(CONF_DB_PASSWORD) or "", data[CONF_DB_NAME])
-    return HistoryWriter(hass, url, int(entry.options.get(CONF_DB_RETENTION,
-                                                          DEFAULT_RETENTION_MONTHS)))
+    writer = HistoryWriter(hass, url, int(entry.options.get(CONF_DB_RETENTION,
+                                                            DEFAULT_RETENTION_MONTHS)))
+    writer.guest_name_days = int(entry.options.get(CONF_GUEST_NAME_DAYS, DEFAULT_GUEST_NAME_DAYS))
+    return writer
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

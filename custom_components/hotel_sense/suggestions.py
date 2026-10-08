@@ -113,6 +113,9 @@ class DeviceSuggestions:
             return self.suggestions
         names = await self._omada_names()
         live_ssids = {mac: c.ssid for mac, c in self.controller.clients.items() if c.ssid}
+        models = {**data.get("models", {}), **{mac: c.model for mac, c in
+                                               self.controller.clients.items() if c.model}}
+        roles = self.controller.presence.ssid_roles
 
         def profile(macs, extra_names=()) -> Profile:
             result = Profile()
@@ -127,10 +130,15 @@ class DeviceSuggestions:
                 for name in (names.get(mac), *extra_names):
                     if key := normalise_name(name):
                         result.names.add(key)
+                if key := normalise_name(models.get(mac)):
+                    result.models.add(key)
             result.label = next((names[m] for m in macs if names.get(m)), None)
             return result
 
         new = {mac: profile([mac]) for mac in data["candidates"]}
+        # Only on equipment networks (IoT): not a staff phone with a new MAC.
+        new = {mac: p for mac, p in new.items()
+               if not p.ssids or roles.roles_of(p.ssids) != {"equipment"}}
         staff_profiles = {i.id: ({"name": i.name, "category": i.category},
                                  profile(i.macs, [i.name])) for i in staff}
         self.suggestions = suggest(new, staff_profiles, self.ignored)

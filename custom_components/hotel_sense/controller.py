@@ -21,10 +21,11 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
-    ATTR_CONTROLLER_MODEL, ATTR_MANUFACTURER, CONF_DB_RETENTION, CONF_SCAN_INTERVAL, CONF_SITE,
+    ATTR_CONTROLLER_MODEL, ATTR_MANUFACTURER, CONF_DB_RETENTION, CONF_GUEST_NAME_DAYS,
+    CONF_SCAN_INTERVAL, CONF_SITE,
     DB_KEYS, DOMAIN, PLATFORMS,
 )
-from .history import DEFAULT_RETENTION_MONTHS
+from .history import DEFAULT_GUEST_NAME_DAYS, DEFAULT_RETENTION_MONTHS
 from .ids import NS_AP, make_unique_id, parse_unique_id
 from .omada_hub import (
     AccessPoint, ConnectedClient, LoginFailed, OmadaClientException, OmadaHub,
@@ -187,6 +188,8 @@ class OmadaController:
         if controller.history is not None:
             controller.history.retention_months = int(
                 config_entry.options.get(CONF_DB_RETENTION, DEFAULT_RETENTION_MONTHS))
+            controller.history.guest_name_days = int(
+                config_entry.options.get(CONF_GUEST_NAME_DAYS, DEFAULT_GUEST_NAME_DAYS))
         if controller.option_scan_interval != old_interval or connection != controller._connection:
             hass.config_entries.async_schedule_reload(config_entry.entry_id)
             return

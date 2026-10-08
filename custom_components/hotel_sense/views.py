@@ -46,6 +46,8 @@ VIEWS_V1: dict[str, str] = {
     "v1_pms_events": (
         "SELECT ts, event_id, event, booking, status, result, rooms FROM pms_events"),
     "v1_device_macs": "SELECT identity_id, mac, name, category FROM devices",
+    "v1_macs": ("SELECT mac, identity_id, first_seen, last_seen, seconds, random, name, vendor, "
+                "model, os, ssids FROM macs"),
     "v1_wifi_events": (
         "SELECT ts, event, client_mac, ap_mac, from_ap_mac, ssid, connected_seconds, traffic_kb "
         "FROM wifi_events"),

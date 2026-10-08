@@ -219,7 +219,7 @@ def _days(started: datetime, ended: datetime):
 
 def device_candidates(conn: Connection, start: datetime, end: datetime,
                       known: Collection[str], *, min_days: int = 5,
-                      min_rooms_per_day: int = 3, limit: int = 50) -> dict:
+                      min_rooms_per_day: int = 3, limit: int = 50, roles=None) -> dict:
     """Devices not in the device list that behave like the hotel's own.
 
     Guests stay a few nights, mostly in their own room; staff come back day
@@ -231,6 +231,10 @@ def device_candidates(conn: Connection, start: datetime, end: datetime,
       (rooms do not hear each other's devices, so this is real movement), or
       seen on ``min_days`` days or more without living in one guest room (a
       long-staying guest spends most of the time in their room).
+
+    With Wi-Fi network roles (``ssid_roles.SsidRoles``): a device on an
+    equipment network is a ``fixed`` candidate, one on the staff network seen
+    on 2 days or more an ``employee`` candidate (hints - the owner checks).
 
     ``import_csv`` has the candidates in the device-list CSV format (names
     empty) for ``hotel_sense.import_devices`` once checked.
@@ -259,6 +263,8 @@ def device_candidates(conn: Connection, start: datetime, end: datetime,
                          start=start, end=end):
             if row["client_mac"] in per_mac:
                 ssids[row["client_mac"]].add(row["ssid"])
+        for mac, networks in _registry_ssids(conn, list(per_mac)).items():
+            ssids[mac] |= networks
 
     candidates = []
     for mac, d in per_mac.items():
@@ -283,6 +289,13 @@ def device_candidates(conn: Connection, start: datetime, end: datetime,
             if days >= min_days and not (top["kind"] == "room" and share >= 0.6):
                 suggest = "employee"
                 reasons.append(f"seen on {days} days, mostly in {top['name']} ({share:.0%})")
+        network_roles = sorted(roles.roles_of(ssids.get(mac, ()))) if roles else []
+        if suggest is None and "equipment" in network_roles:
+            suggest = "fixed"
+            reasons.append("on an equipment Wi-Fi network")
+        elif suggest is None and "staff" in network_roles and days >= 2:
+            suggest = "employee"
+            reasons.append(f"on the staff Wi-Fi network, seen on {days} days")
         if suggest is None:
             continue
         candidates.append({
@@ -291,6 +304,7 @@ def device_candidates(conn: Connection, start: datetime, end: datetime,
             "max_guest_rooms_per_day": rooms_per_day,
             "main_zone": top["name"], "main_zone_share": round(share, 2),
             "random_mac": is_random_mac(mac), "ssids": sorted(ssids.get(mac, ())),
+            "network_roles": network_roles,
         })
     candidates.sort(key=lambda c: (c["suggest"] != "fixed", -c["days"],
                                    -c["max_guest_rooms_per_day"], c["mac"]))
@@ -304,13 +318,29 @@ def device_candidates(conn: Connection, start: datetime, end: datetime,
 
 # -- device identity suggestions -------------------------------------------- #
 
+def _registry(conn: Connection, macs: list[str]) -> dict[str, dict]:
+    """Rows of the MAC registry (``v1_macs``) for ``macs``."""
+    result = {}
+    for i in range(0, len(macs), 500):
+        for r in _rows(conn, "SELECT mac, first_seen, model, ssids FROM v1_macs "
+                             "WHERE mac IN :macs", macs=macs[i:i + 500]):
+            result[r["mac"]] = r
+    return result
+
+
+def _registry_ssids(conn: Connection, macs: list[str]) -> dict[str, set[str]]:
+    return {mac: set(r["ssids"].split(",")) for mac, r in _registry(conn, macs).items()
+            if r["ssids"]}
+
+
 def suggestion_data(conn: Connection, since: datetime, new_since: datetime,
                     known: Collection[str], device_macs: Collection[str],
                     open_macs: Collection[str] = (), min_seconds: int = 1800) -> dict:
     """What ``device_suggest`` compares, in one read.
 
     Candidates: random MACs not on the device list, first seen at or after
-    ``new_since`` (a MAC seen before that is not new) with ``min_seconds`` of
+    ``new_since`` (a MAC seen before that - in the sessions or ever, by the MAC
+    registry - is not new) with ``min_seconds`` of
     presence, or on the Wi-Fi now (``open_macs``). Sessions and SSIDs since
     ``since`` for the candidates and for ``device_macs`` (the MACs of the
     devices on the list).
@@ -321,10 +351,13 @@ def suggestion_data(conn: Connection, since: datetime, new_since: datetime,
         conn, "SELECT client_mac, MIN(started) AS first, SUM(seconds) AS seconds "
               "FROM v1_presence WHERE ended > :start GROUP BY client_mac", start=since)}
     candidates = set()
-    for mac in set(activity) | set(open_macs):
-        if mac in known or not is_random_mac(mac):
-            continue
+    seen = sorted(m for m in set(activity) | set(open_macs)
+                  if m not in known and is_random_mac(m))
+    registry = _registry(conn, seen)
+    for mac in seen:
         first, seconds = activity.get(mac, (None, 0))
+        if (row := registry.get(mac)) is not None:  # first seen ever, not just in the window
+            first = min(filter(None, (first, _dt(row["first_seen"]))))
         if first is not None and first < new_since:
             continue  # not new
         if seconds >= min_seconds or mac in open_macs:
@@ -341,4 +374,11 @@ def suggestion_data(conn: Connection, since: datetime, new_since: datetime,
                              "WHERE ts >= :start AND ssid IS NOT NULL AND client_mac IN :macs",
                        start=since, macs=macs):
             ssids[r["client_mac"]].add(r["ssid"])
-    return {"candidates": sorted(candidates), "sessions": dict(sessions), "ssids": dict(ssids)}
+    models: dict[str, str] = {}
+    for mac, row in _registry(conn, macs).items():
+        if row["ssids"]:
+            ssids[mac] |= set(row["ssids"].split(","))
+        if row["model"]:
+            models[mac] = row["model"]
+    return {"candidates": sorted(candidates), "sessions": dict(sessions), "ssids": dict(ssids),
+            "models": models}
