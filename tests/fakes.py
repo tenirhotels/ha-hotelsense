@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from awesomeversion import AwesomeVersion
+from tplink_omada_client.exceptions import RequestFailed
 from tplink_omada_client.clients import OmadaWiredClient, OmadaWirelessClient
 from tplink_omada_client.devices import OmadaListDevice
 
@@ -142,6 +143,15 @@ class FakeApi:
             return {"controllerName": self.name}
         if path == "users/current":
             return {"privilege": {"sites": list(self.sites)}}
+        if path.startswith(f"sites/{SITE_ID}/clients/") and path.count("/") == 3:
+            mac = path.rsplit("/", 1)[1]
+            raw = next((c for c in self.responses["/clients"]["data"] if c["mac"] == mac), None)
+            if raw is None:
+                raise RequestFailed(-41011, "client not found")
+            return dict(raw)
+        if path.startswith(f"sites/{SITE_ID}/") and ("insight/past" in path
+                                                     or path.endswith("/history")):
+            raise RequestFailed(-1, "unsupported")
         if path.startswith(f"sites/{SITE_ID}/eaps/"):
             mac = path.rsplit("/", 1)[1]
             if self.raise_on_command:

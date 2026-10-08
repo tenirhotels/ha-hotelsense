@@ -1,3 +1,6 @@
+# Hotel Sense 0.13.1
+- Action `hotel_sense.omada_client_probe` (diagnostics): for one MAC, what the Omada controller keeps about the client - per source (known clients, client details, connection history endpoints) the field names and every time field (first / last seen ...). Other values are not returned. To find whether the controller keeps a first-seen date
+
 # Hotel Sense 0.13.0
 - Device suggestions: new private (random) MACs of the last week compared once an hour with the staff devices on the list - same name (Omada), the old MAC went quiet before the new one appeared, same zones, same working hours, same Wi-Fi network. A check that holds adds its weight, one that fails takes it away; not enough data counts neither way; 60+ is suggested. Never on the Wi-Fi at the same time as the device. Nothing is linked automatically
 - Configure → Fixed and employee devices → Device suggestions: Link to #N / Ignore (remembered) / Decide later, with every check shown

@@ -43,6 +43,7 @@ SERVICE_LINK_MAC = "link_mac"
 SERVICE_UNLINK_MAC = "unlink_mac"
 SERVICE_DEVICE_SUGGESTIONS = "device_suggestions"
 SERVICE_IGNORE_SUGGESTION = "ignore_device_suggestion"
+SERVICE_OMADA_CLIENT_PROBE = "omada_client_probe"
 ATTR_BOOKING = "booking"
 ATTR_ROOM = "room"
 ATTR_START = "start"
@@ -293,6 +294,11 @@ def async_register_services(hass: HomeAssistant) -> None:
             raise ServiceValidationError(str(err)) from err
         await manager.async_ignore(_mac(call), identity)
 
+    async def omada_client_probe(call: ServiceCall) -> ServiceResponse:
+        controller = _controller(hass, call)
+        mac = _mac(call)
+        return {"mac": mac, "sources": await controller.hub.async_client_probe(mac)}
+
     async def link_mac(call: ServiceCall) -> ServiceResponse:
         store = await async_get_device_store(hass)
         mac = _mac(call)
@@ -356,6 +362,10 @@ def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_DEVICE_SUGGESTIONS, device_suggestions,
         schema=vol.Schema({**entry_field, vol.Optional(ATTR_REFRESH, default=True): cv.boolean}),
+        supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        DOMAIN, SERVICE_OMADA_CLIENT_PROBE, omada_client_probe,
+        schema=vol.Schema({**entry_field, vol.Required(ATTR_MAC): cv.string}),
         supports_response=SupportsResponse.ONLY)
     hass.services.async_register(
         DOMAIN, SERVICE_IGNORE_SUGGESTION, ignore_suggestion,

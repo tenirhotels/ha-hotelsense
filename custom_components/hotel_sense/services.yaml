@@ -298,3 +298,14 @@ ignore_device_suggestion:
       example: "7"
       selector:
         text:
+omada_client_probe:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: hotel_sense
+    mac:
+      required: true
+      example: "AA-BB-CC-DD-EE-FF"
+      selector:
+        text:

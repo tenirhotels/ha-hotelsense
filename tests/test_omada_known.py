@@ -107,3 +107,22 @@ async def test_omada_known_devices_action(hass, make_entry, patch_api):
     with pytest.raises(HomeAssistantError, match="known clients"):
         await hass.services.async_call(DOMAIN, "omada_known_devices", {}, blocking=True,
                                        return_response=True)
+
+
+async def test_omada_client_probe(hass, make_entry, patch_api):
+    from .fakes import GUEST_PHONE
+    await _hotel(hass, make_entry())
+    patch_api.responses["/insight/clients"]["data"] = [
+        _raw(GUEST_PHONE, "Phone", 10, 0, firstSeen=1_700_000_000_000)]
+    result = await hass.services.async_call(DOMAIN, "omada_client_probe",
+                                            {"mac": GUEST_PHONE.lower()}, blocking=True,
+                                            return_response=True)
+    sources = result["sources"]
+    known = sources["known_clients"]
+    assert known["ok"] and known["found"] == 1 and "firstSeen" in known["fields"]
+    assert known["times"][0]["firstSeen"] == "2023-11-14T22:13:20+00:00"
+    assert "Phone" not in str(sources)  # field names and times only
+    assert sources["client_detail"]["ok"] and "mac" in sources["client_detail"]["fields"]
+    past = sources["insight/pastConnection"]
+    assert past["ok"] is False and past["error"].startswith("RequestFailed")
+    assert "clients/<mac>/history" in sources
