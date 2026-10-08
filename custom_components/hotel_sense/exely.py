@@ -25,6 +25,9 @@ _EVENT_KEYS = {"event", "eventtype", "eventname", "type", "action", "name", "top
 _CHECK_IN = ("checkin", "checkedin", "arrival", "arrived", "заезд", "заселен", "заселён")
 _CHECK_OUT = ("checkout", "checkedout", "departure", "departed", "выезд", "выселен")
 _CANCEL = ("cancel", "undo", "revert", "rollback", "annul", "отмен", "аннулир")
+# A change of the planned dates ("webpms:change_check_in_datetime") is no arrival
+# or departure: never a status, whatever words it contains.
+_NOT_STATUS = ("date", "time", "change", "modif", "update", "move", "дата", "время", "измен")
 # Keys that may carry the room number/name.
 # (room type, room id, rooms count ... do not match).
 _ROOM_KEY = re.compile(r"^(room|номер|комната)(number|num|no|name|code|title)?$")
@@ -57,6 +60,8 @@ def status_from_event(name: str) -> str | None:
     so the word "checkin" in a cancellation must not be read as a check-in.
     """
     text = _norm_key(name)
+    if any(word in text for word in _NOT_STATUS):
+        return None
     is_in = any(word in text for word in _CHECK_IN)
     is_out = any(word in text for word in _CHECK_OUT)
     if is_in == is_out:

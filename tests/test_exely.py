@@ -36,6 +36,10 @@ from .test_stage_a import _hotel, _options_menu, _state
     ("CheckOutCancelled", STATUS_CHECKED_IN), ("Отмена выезда", STATUS_CHECKED_IN),
     ("checkout.reverted", STATUS_CHECKED_IN),
     ("checkin_and_checkout", None),  # ambiguous
+    # A change of the planned dates is no arrival / departure (seen in production).
+    ("webpms:change_check_in_datetime", None), ("webpms:change_check_out_datetime", None),
+    ("webpms:check_in", STATUS_CHECKED_IN), ("webpms:check_out", STATUS_CHECKED_OUT),
+    ("Изменение даты заезда", None),
 ])
 def test_status_from_event(name, expected):
     assert status_from_event(name) == expected

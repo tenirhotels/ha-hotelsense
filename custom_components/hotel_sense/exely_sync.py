@@ -61,7 +61,8 @@ class RoomPlan:
     status: str
     booking: str | None = None
     since: datetime | None = None  # when Exely's event happened (UTC); None = no event
-    overdue: bool = False  # checked in past the planned check-out
+    overdue: bool = False  # a stay checked in past its planned check-out
+    overdue_bookings: list[str] = field(default_factory=list)
 
 
 def plan(stays: list[tuple[str, RoomStay]], room_ids, tz, now: datetime, *,
@@ -83,11 +84,14 @@ def plan(stays: list[tuple[str, RoomStay]], room_ids, tz, now: datetime, *,
         if inside:
             booking, stay = max(inside, key=lambda e: exely_time(
                 e[1].actual_check_in or e[1].check_in, tz) or now)
-            planned_out = exely_time(stay.check_out, tz)
+            # Any stay still in past its planned check-out - also an earlier guest
+            # never checked out in the PMS while the next one already is in.
+            overdue = [b for b, s in inside if (out := exely_time(s.check_out, tz)) is not None
+                       and now - out > OVERDUE_AFTER]
             result[room_id] = RoomPlan(
                 room_id, STATUS_CHECKED_IN, booking,
                 exely_time(stay.actual_check_in or stay.check_in, tz),
-                overdue=planned_out is not None and now - planned_out > OVERDUE_AFTER)
+                overdue=bool(overdue), overdue_bookings=overdue)
             continue
         out = [(b, s) for b, s in entries if s.status == STATUS_CHECKED_OUT]
         if out:
@@ -179,8 +183,8 @@ class ExelySync:
                 result.unresolved.append(name or room_id)
                 continue
             room_name = self.receiver.manager.rooms[area_id].name
-            if room_plan.overdue:
-                result.overdue_checkouts.append({"room": room_name, "booking": room_plan.booking})
+            for booking in room_plan.overdue_bookings:
+                result.overdue_checkouts.append({"room": room_name, "booking": booking})
             self._apply(area_id, room_name, room_plan, result, override_manual)
         self.last = result
         return result

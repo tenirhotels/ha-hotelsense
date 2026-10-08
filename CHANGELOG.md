@@ -1,4 +1,6 @@
 # Hotel Sense 0.15.1
+- Fix: Exely `webpms:change_check_in_datetime` / `change_check_out_datetime` (a change of the planned dates) were read as a check-in / check-out and set the room; they are no status events now (the booking is looked up afresh next time)
+- Overdue check-outs: every stay still checked in past its planned check-out is reported - also an earlier guest never checked out in the PMS while the next guest is already in the room
 - Exely sync: a reservation looked up in the last 20 minutes (e.g. by a dry run just before) is not asked again and counts as read - a sync right after a dry run no longer runs out of the hourly request budget and leaves the picture incomplete. The result shows `from_cache`
 
 # Hotel Sense 0.15.0

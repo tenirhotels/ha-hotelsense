@@ -51,6 +51,16 @@ def test_incomplete_picture_never_empties_a_room():
     assert set(result) == {"r1"}
 
 
+def test_an_earlier_guest_never_checked_out_is_overdue_even_with_a_new_one_in():
+    stays = [("OLD", _stay("r1", "checked_in", check_in="2026-01-02T14:00",
+                           check_out="2026-01-03T10:00", actual_in="2026-01-02T15:00")),
+             ("NEW", _stay("r1", "checked_in", check_out="2026-01-04T10:00",
+                           actual_in="2026-01-03T11:30"))]
+    result = plan(stays, ["r1"], UTC, NOW, complete=True)["r1"]
+    assert (result.status, result.booking) == ("checked_in", "NEW")
+    assert result.overdue_bookings == ["OLD"]
+
+
 def test_a_new_guest_in_wins_over_the_last_one_out_and_overdue_is_flagged():
     stays = [("OLD", _stay("r1", "checked_out", actual_out="2026-01-03T10:00")),
              ("NEW", _stay("r1", "checked_in", check_out="2026-01-03T10:00",
