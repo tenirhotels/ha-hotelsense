@@ -79,6 +79,33 @@ async def test_access_point_devices(hass, make_entry, patch_api):
     assert controller.name == "Omada OC200" and controller.sw_version == "6.3.0.45"
 
 
+class _DataclassDeviceInfo(dict):
+    """DeviceInfo as of HA 2026.11: a dataclass whose update() takes a mapping only."""
+
+    def update(self, other):  # noqa: D102 - no keyword arguments, like HA 2026.11
+        super().update(other)
+
+
+def test_access_point_device_info_without_keyword_update(monkeypatch):
+    """HA 2026.11: ``info.update(name=...)`` raised and stopped sensor / binary_sensor."""
+    from types import SimpleNamespace
+
+    from custom_components.hotel_sense import controller as controller_module
+    from custom_components.hotel_sense.omada_hub import AccessPoint
+
+    monkeypatch.setattr(controller_module, "DeviceInfo", _DataclassDeviceInfo)
+    ap = AccessPoint(mac=AP_WF06, name="WF06", model="EAP225(EU) v4.0", firmware="5.1.0",
+                     online=True, uptime=1, clients=0)
+    fake = SimpleNamespace(site_id=SITE_ID, access_points={AP_WF06: ap})
+    info = controller_module.OmadaController.ap_device_info(fake, AP_WF06)
+    assert info["name"] == "WF06" and info["model"] == "EAP225(EU) v4.0"
+    assert info["sw_version"] == "5.1.0" and info["manufacturer"] == "TP-Link"
+    # An access point not (yet) known: identifiers only, no name / model.
+    unknown = controller_module.OmadaController.ap_device_info(
+        SimpleNamespace(site_id=SITE_ID, access_points={}), AP_WF07)
+    assert "name" not in unknown and unknown["identifiers"]
+
+
 # --------------------------------------------------------------------------- #
 # Upgrade from 0.2 (ha-omada based): same IDs, Areas kept, old entities removed
 # --------------------------------------------------------------------------- #
