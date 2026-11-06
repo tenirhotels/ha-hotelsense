@@ -1,3 +1,6 @@
+# Hotel Sense 0.15.3
+- Fix for Home Assistant 2026.11: the sensor and binary sensor platforms did not start (`_DeviceInfoMapping.update() got an unexpected keyword argument 'name'`). DeviceInfo is a dataclass since 2026.11 and its `update()` takes no keyword arguments; the access point device info is now built in one call (works on 2026.9 - 2026.11)
+
 # Hotel Sense 0.15.2
 - Fix: an Exely room whose name carries a digit but is another room ("V1", a villa) was matched to Room 01 by the room-number fallback; the sync then emptied Room 01 right after setting it checked in. The number fallback now takes only labels that are a room number ("1", "01", "Room 1", "Номер 1", "№1", "Apartment 6"); "V1" stays unresolved (shown in the sync result)
 - Exely sync: several Exely rooms on one hotel room (a mapping to check) - occupied wins, never emptied by the other room; shown as `conflicts`

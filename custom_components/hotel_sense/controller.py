@@ -109,15 +109,19 @@ class OmadaController:
         )
 
     def ap_device_info(self, mac: str) -> DeviceInfo:
+        # All fields in one call: since HA 2026.11 DeviceInfo is a dataclass and
+        # its update() takes a mapping only, not keyword arguments.
         ap = self.access_points.get(mac)
-        info = DeviceInfo(
+        details = (
+            {"name": ap.name, "model": ap.model, "sw_version": ap.firmware}
+            if ap is not None else {}
+        )
+        return DeviceInfo(
             identifiers={(DOMAIN, make_unique_id(NS_AP, self.site_id, mac))},
             connections={(CONNECTION_NETWORK_MAC, mac.lower().replace("-", ":"))},
             manufacturer=ATTR_MANUFACTURER,
+            **details,
         )
-        if ap is not None:
-            info.update(name=ap.name, model=ap.model, sw_version=ap.firmware)
-        return info
 
     # -- clients ------------------------------------------------------------ #
     def client(self, mac: str) -> ConnectedClient | None:
